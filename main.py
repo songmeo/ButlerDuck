@@ -3,13 +3,16 @@ import re
 import sqlite3
 import os
 from openai import OpenAI
+from dotenv import load_dotenv
 
+load_dotenv()
+
+XAI_API_KEY = os.environ['XAI_API_KEY']
+TOKEN = os.environ['TOKEN']
 from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
-TOKEN = "7695069366:AAEvA0f_t8TaSyTi-ysLswBXpTSeNxrkZEk"
 USERS: dict[int, str] = {129626155: "chubby", 787018746: "songmeo"}
-XAI_API_KEY = "xai-j6J13TLHY7Q7BMwsYzOkJppHeaLZI60Zf1r1WyGtafBSwIsmf0BpLQd9C3IhGyUZCngXYVO2ZpJVDZsh"
 client = OpenAI(
     api_key=XAI_API_KEY,
     base_url="https://api.x.ai/v1",
@@ -73,7 +76,9 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE, con: sqlite3.
             cur.execute("INSERT INTO user_message VALUES (NULL,?,False,?)", (user_id, text))
 
             messages = []
-            all_messages = cur.execute("select is_bot, message from user_message where user_id=? order by id limit 1000", (user_id,)).fetchall()
+            all_messages = cur.execute(
+                "select is_bot, message from user_message where user_id=? order by id limit 1000",
+                (user_id,)).fetchall()
             for is_bot, message in all_messages:
                 messages.append({"role": "system" if is_bot else "user", "content": message})
             answer = ask_ai(text, messages)
