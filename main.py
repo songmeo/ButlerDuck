@@ -72,17 +72,17 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE, con: sqlite3.
     else:
         enabled = bool(cur.execute("SELECT enabled FROM status").fetchall()[-1][0])
         if enabled:
-            user_id = update.message.from_user.id
-            cur.execute("INSERT INTO user_message VALUES (NULL,?,False,?)", (user_id, text))
+            chat_id = update.message.chat_id
+            cur.execute("INSERT INTO user_message VALUES (NULL,?,False,?)", (chat_id, text))
 
             messages = []
             all_messages = cur.execute(
-                "select is_bot, message from user_message where user_id=? order by id limit 1000",
-                (user_id,)).fetchall()
+                "select is_bot, message from user_message where chat_id=? order by id limit 1000",
+                (chat_id,)).fetchall()
             for is_bot, message in all_messages:
                 messages.append({"role": "system" if is_bot else "user", "content": message})
             answer = ask_ai(text, messages)
-            cur.execute("INSERT INTO user_message VALUES (NULL,?,True,?)", (user_id, answer))
+            cur.execute("INSERT INTO user_message VALUES (NULL,?,True,?)", (chat_id, answer))
             con.commit()
 
             await update.message.reply_text(answer)
@@ -120,7 +120,7 @@ def main() -> None:
     """)
 
     cur.execute("CREATE TABLE IF NOT EXISTS user_message("
-                "id INTEGER PRIMARY KEY, user_id INTEGER, is_bot BOOLEAN,message TEXT)")
+                "id INTEGER PRIMARY KEY, chat_id INTEGER, is_bot BOOLEAN,message TEXT)")
     con.commit()
 
     async def echo_proxy(update, context):
