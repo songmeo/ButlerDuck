@@ -19,7 +19,7 @@ XAI_API_KEY = os.environ["XAI_API_KEY"]
 OpenAI_API_KEY = os.environ["OpenAI_API_KEY"]
 TOKEN = os.environ["TOKEN"]
 
-client = OpenAI(api_key=OpenAI_API_KEY)
+client = OpenAI(api_key=XAI_API_KEY, base_url="https://api.x.ai/v1/")
 
 # Enable logging
 logging.basicConfig(
@@ -48,7 +48,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 def ask_ai(question: str, messages: list) -> str:
-    completion = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
+    completion = client.chat.completions.create(model="grok-beta", messages=messages)
     answer = completion.choices[0].message.content
     return answer
 
@@ -64,11 +64,20 @@ async def echo(
     )
     text = update.message.text
     cur = con.cursor()
-    chat_id, user_id = update.message.chat_id, update.message.from_user.id
+    chat_id, user_id, username = (
+        update.message.chat_id,
+        update.message.from_user.id,
+        update.message.from_user.username,
+    )
+    cur.execute(
+        "INSERT OR IGNORE INTO user VALUES (NULL,?,?)",
+        (user_id, username),
+    )
     cur.execute(
         "INSERT INTO user_message VALUES (NULL,?,?,?)",
         (chat_id, user_id, text),
     )
+    con.commit()
     no_reply_token = "-"
     messages = [
         {
@@ -110,16 +119,16 @@ async def echo(
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
-    answer = ask_ai(text, messages)
-    if answer.strip().strip("ButlerBot (0):") != no_reply_token:
+    answer = ask_ai(text, messages).removeprefix("ButlerBot (0): ")
+    if answer != no_reply_token:
         cur.execute(  # id, user_id, chat_id, message
-            "INSERT INTO user_message VALUES (NULL,?,?,?)",
-            (chat_id, user_id, answer),
+            "INSERT INTO user_message VALUES (NULL,?,0,?)",
+            (chat_id, answer),
         )
-        con.commit()
         await update.message.reply_text(answer)
     else:
         logger.info("The bot has nothing to say.")
+    con.commit()
 
 
 def main() -> None:
@@ -144,17 +153,9 @@ def main() -> None:
     cur.execute(
         "CREATE TABLE IF NOT EXISTS user("
         "id       INTEGER PRIMARY KEY,"
-        "tg_id    INTEGER NOT NULL,"
+        "tg_id    INTEGER NOT NULL UNIQUE,"
         "name     TEXT"
         ")"
-    )
-
-    # todo: insert users when they send a message
-    cur.execute(
-        "REPLACE INTO user VALUES"
-        "(0, 787018746, 'songmeo'),"
-        "(1, 129626155, 'pavel'),"
-        "(2, 0,'butlerbot')"
     )
 
     cur.execute(
@@ -163,7 +164,7 @@ def main() -> None:
         "chat_id    INTEGER NOT NULL,"
         "user_id    INTEGER NOT NULL,"
         "message    TEXT NOT NULL,"
-        "CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(tg_id)"
+        "CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES user(tg_id)"
         ")"
     )
     con.commit()
