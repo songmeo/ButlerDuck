@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
+
 import logging
-import re
 import sqlite3
 import os
 from openai import OpenAI
@@ -84,7 +85,7 @@ async def echo(
             "role": "system",
             "content": "Each message in the conversation below is prefixed with the username and their"
             ' unique identifier, like this: "username (123456789): MESSAGE...".'
-            " You play the role of the user called ButlerBot;"
+            " You play the role of the user called ButlerBot, or simply Bot;"
             " your username and unique identifier are ButlerBot and 0."
             " You are observing the user's conversation and normally you do not interfere unless you are"
             " contextually expected to, you can contribute to the conversation, or if you are addressed "
