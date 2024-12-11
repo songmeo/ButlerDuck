@@ -17,10 +17,10 @@ from telegram.ext import (
 load_dotenv()
 
 XAI_API_KEY = os.environ["XAI_API_KEY"]
-OpenAI_API_KEY = os.environ["OpenAI_API_KEY"]
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 TOKEN = os.environ["TOKEN"]
 
-client = OpenAI(api_key=XAI_API_KEY, base_url="https://api.x.ai/v1/")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Enable logging
 logging.basicConfig(
@@ -49,8 +49,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 def ask_ai(question: str, messages: list) -> str:
-    completion = client.chat.completions.create(model="grok-beta", messages=messages)
+    completion = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
     answer = completion.choices[0].message.content
+    logger.info("messages sent: %s \n bot replied: %s", messages, completion.choices)
     return answer
 
 
@@ -83,14 +84,14 @@ async def echo(
     messages = [
         {
             "role": "system",
-            "content": "Each message in the conversation below is prefixed with the username and their"
-            ' unique identifier, like this: "username (123456789): MESSAGE...".'
-            " You play the role of the user called ButlerBot, or simply Bot;"
-            " your username and unique identifier are ButlerBot and 0."
-            " You are observing the user's conversation and normally you do not interfere unless you are"
-            " contextually expected to, you can contribute to the conversation, or if you are addressed "
-            " directly."
-            f' If you have nothing to say, respond with "{no_reply_token}".',
+            "content": f"Each message in the conversation below is prefixed with the username and their unique identifier, "
+            f'like this: "username (123456789): MESSAGE...". '
+            f"You play the role of the user called ButlerBot, or simply Bot; "
+            f"your username and unique identifier are ButlerBot and 0. "
+            f"You are observing the user's conversation and normally you do not interfere "
+            f"unless you are explicitly called by name (e.g., 'bot,' 'ButlerBot,' etc.). "
+            f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
+            f"If you are not explicitly addressed, always respond with {no_reply_token}",
         },
     ]
     all_messages = cur.execute(
