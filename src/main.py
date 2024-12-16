@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
-import sqlite3
+import psycopg2
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -18,7 +18,18 @@ load_dotenv()
 
 XAI_API_KEY = os.environ["XAI_API_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+DB_USER = os.environ["DB_USER"]
+DB_PASSWORD = os.environ["DB_PASSWORD"]
+DB_NAME = os.environ["DB_NAME"]
+DB_HOST = os.environ["DB_HOST"]
 TOKEN = os.environ["TOKEN"]
+DB_CONFIG = {
+    "dbname": DB_NAME,
+    "user": DB_USER,
+    "password": DB_PASSWORD,
+    "host": DB_HOST,
+    "port": 5432,
+}
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -56,7 +67,7 @@ def ask_ai(question: str, messages: list) -> str:
 
 
 async def echo(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, con: sqlite3.Connection
+    update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect
 ) -> None:
     """Echo the user message."""
     logger.info(
@@ -72,11 +83,18 @@ async def echo(
         update.message.from_user.username,
     )
     cur.execute(
-        "INSERT OR IGNORE INTO user VALUES (NULL,?,?)",
+        """
+        INSERT INTO "user" (tg_id, name)
+        VALUES (%s, %s)
+        ON CONFLICT (tg_id) DO NOTHING
+        """,
         (user_id, username),
     )
     cur.execute(
-        "INSERT INTO user_message VALUES (NULL,?,?,?)",
+        """
+        INSERT INTO user_message (chat_id, user_id, message)
+        VALUES (%s, %s, %s)
+        """,
         (chat_id, user_id, text),
     )
     con.commit()
@@ -94,26 +112,27 @@ async def echo(
             f"If you are not explicitly addressed, always respond with {no_reply_token}",
         },
     ]
-    all_messages = cur.execute(
+    cur.execute(
         """
         SELECT 
             user_message.user_id,
-            user.name AS username,
+            "user".name AS username,
             user_message.message
         FROM 
-            user_message 
+            user_message
         JOIN
-            user
+            "user"
         ON 
-            user_message.user_id = user.tg_id 
+            user_message.user_id = "user".tg_id
         WHERE 
-            user_message.chat_id = ? 
+            user_message.chat_id = %s
         ORDER BY 
-            user_message.id 
+            user_message.id
         LIMIT 1000;
         """,
         (chat_id,),
-    ).fetchall()
+    )
+    all_messages = cur.fetchall()
     for user_id, user_name, message in all_messages:
         messages.append(
             {
@@ -124,7 +143,10 @@ async def echo(
     answer = ask_ai(text, messages).removeprefix("ButlerBot (0): ")
     if answer != no_reply_token:
         cur.execute(  # id, user_id, chat_id, message
-            "INSERT INTO user_message VALUES (NULL,?,0,?)",
+            """
+            INSERT INTO user_message (chat_id, user_id, message)
+            VALUES (%s, 0, %s)
+            """,
             (chat_id, answer),
         )
         await update.message.reply_text(answer)
@@ -142,34 +164,46 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
 
-    con = sqlite3.connect("telegrambot.db")
+    try:
+        con = psycopg2.connect(**DB_CONFIG)
+        cur = con.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS "user" (
+                id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
+                tg_id INTEGER NOT NULL UNIQUE,
+                name TEXT
+            )
+            """
+        )
+        cur.execute(
+            """
+            INSERT INTO "user" (tg_id, name)
+            VALUES (%s, %s)
+            ON CONFLICT (tg_id) DO NOTHING
+            """,
+            (0, "ButlerBot"),
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_message (
+                id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES "user"(tg_id) ON DELETE CASCADE
+            )
+            """
+        )
+        con.commit()
+    except psycopg2.Error as e:
+        print(f"Error: {e}")
 
     async def echo_proxy(update, context):
         await echo(update, context, con)
 
     # on non command i.e message - echo the message on Telegram
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, echo_proxy))
-
-    cur = con.cursor()
-
-    cur.execute(
-        "CREATE TABLE IF NOT EXISTS user("
-        "id       INTEGER PRIMARY KEY,"
-        "tg_id    INTEGER NOT NULL UNIQUE,"
-        "name     TEXT"
-        ")"
-    )
-
-    cur.execute(
-        "CREATE TABLE IF NOT EXISTS user_message("
-        "id         INTEGER PRIMARY KEY,"
-        "chat_id    INTEGER NOT NULL,"
-        "user_id    INTEGER NOT NULL,"
-        "message    TEXT NOT NULL,"
-        "CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES user(tg_id)"
-        ")"
-    )
-    con.commit()
 
     async def echo_proxy(update, context):
         await echo(update, context, con)
