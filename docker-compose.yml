@@ -2,7 +2,6 @@ services:
   bot:
     build:
       context: ./src
-    container_name: butlerbot
     restart: unless-stopped
     env_file:
       - .env
@@ -21,7 +20,6 @@ services:
 
   database:
     image: postgres:15
-    container_name: butlerbot_db
     restart: unless-stopped
     env_file:
       - .env

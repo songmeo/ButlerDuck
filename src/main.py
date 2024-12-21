@@ -164,40 +164,37 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
 
-    try:
-        con = psycopg2.connect(**DB_CONFIG)
-        cur = con.cursor()
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS "user" (
-                id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
-                tg_id INTEGER NOT NULL UNIQUE,
-                name TEXT
-            )
-            """
+    con = psycopg2.connect(**DB_CONFIG)
+    cur = con.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS "user" (
+            id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
+            tg_id BIGINT NOT NULL UNIQUE,
+            name TEXT
         )
-        cur.execute(
-            """
-            INSERT INTO "user" (tg_id, name)
-            VALUES (%s, %s)
-            ON CONFLICT (tg_id) DO NOTHING
-            """,
-            (0, "ButlerBot"),
+        """
+    )
+    cur.execute(
+        """
+        INSERT INTO "user" (tg_id, name)
+        VALUES (%s, %s)
+        ON CONFLICT (tg_id) DO NOTHING
+        """,
+        (0, "ButlerBot"),
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_message (
+            id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
+            chat_id BIGINT NOT NULL,
+            user_id BIGINT NOT NULL,
+            message TEXT NOT NULL,
+            CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES "user"(tg_id) ON DELETE CASCADE
         )
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS user_message (
-                id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
-                chat_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                message TEXT NOT NULL,
-                CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES "user"(tg_id) ON DELETE CASCADE
-            )
-            """
-        )
-        con.commit()
-    except psycopg2.Error as e:
-        print(f"Error: {e}")
+        """
+    )
+    con.commit()
 
     async def echo_proxy(update, context):
         await echo(update, context, con)
