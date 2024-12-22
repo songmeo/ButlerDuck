@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import asyncio
 import logging
 import psycopg2
 import os
@@ -30,6 +30,7 @@ DB_CONFIG = {
     "host": DB_HOST,
     "port": 5432,
 }
+BOT_NAME = "ButlerBot"
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -43,26 +44,16 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
-# Define a few command handlers. These usually take the two arguments update and
-# context.
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /start is issued."""
-    user = update.effective_user
-    await update.message.reply_html(
-        rf"Hi {user.mention_html()}!",
-        reply_markup=ForceReply(selective=True),
-    )
+async def ask_ai(question: str, messages: list) -> str:
+    loop = asyncio.get_running_loop()  # gain access to the scheduler
 
+    def runs_in_background_thread():
+        return client.chat.completions.create(model="gpt-4o-mini", messages=messages)
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send a message when the command /help is issued."""
-    await update.message.reply_text("Help!")
-
-
-def ask_ai(question: str, messages: list) -> str:
-    completion = client.chat.completions.create(model="gpt-4o-mini", messages=messages)
+    completion = await loop.run_in_executor(None, runs_in_background_thread)
     answer = completion.choices[0].message.content
-    logger.info("messages sent: %s \n bot replied: %s", messages, completion.choices)
+    logger.info("messages sent: %s", messages)
+    logger.info("bot replied: %s", completion.choices)
     return answer
 
 
@@ -104,7 +95,7 @@ async def echo(
             "role": "system",
             "content": f"Each message in the conversation below is prefixed with the username and their unique identifier, "
             f'like this: "username (123456789): MESSAGE...". '
-            f"You play the role of the user called ButlerBot, or simply Bot; "
+            f"You play the role of the user called {BOT_NAME}, or simply Bot; "
             f"your username and unique identifier are ButlerBot and 0. "
             f"You are observing the user's conversation and normally you do not interfere "
             f"unless you are explicitly called by name (e.g., 'bot,' 'ButlerBot,' etc.). "
@@ -140,7 +131,8 @@ async def echo(
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
-    answer = ask_ai(text, messages).removeprefix("ButlerBot (0): ")
+    answer = await ask_ai(text, messages)
+    answer = answer.removeprefix(f"{BOT_NAME} (0): ")
     if answer != no_reply_token:
         cur.execute(  # id, user_id, chat_id, message
             """
@@ -160,10 +152,6 @@ def main() -> None:
     # Create the Application and pass it your bot's token.
     application = Application.builder().token(TOKEN).build()
 
-    # on different commands - answer in Telegram
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-
     con = psycopg2.connect(**DB_CONFIG)
     cur = con.cursor()
     cur.execute(
@@ -181,7 +169,7 @@ def main() -> None:
         VALUES (%s, %s)
         ON CONFLICT (tg_id) DO NOTHING
         """,
-        (0, "ButlerBot"),
+        (0, BOT_NAME),
     )
     cur.execute(
         """
