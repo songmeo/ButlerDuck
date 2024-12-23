@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
+# Copyright Huong Pham <songhuong.phamthi@gmail.com>
+
 import asyncio
 import logging
 import psycopg2
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
-from telegram import ForceReply, Update
+from telegram import Update
 from telegram.ext import (
     Application,
-    CommandHandler,
     ContextTypes,
     MessageHandler,
     filters,
@@ -45,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 async def ask_ai(question: str, messages: list) -> str:
+    _ = question
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
     def runs_in_background_thread():
@@ -60,6 +62,7 @@ async def ask_ai(question: str, messages: list) -> str:
 async def echo(
     update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect
 ) -> None:
+    _ = context
     """Echo the user message."""
     logger.info(
         "Mew message from chat %s, user %s",
@@ -93,11 +96,11 @@ async def echo(
     messages = [
         {
             "role": "system",
-            "content": f"Each message in the conversation below is prefixed with the username and their unique identifier, "
-            f'like this: "username (123456789): MESSAGE...". '
+            "content": f"Each message in the conversation below is prefixed with the username and their unique "
+            'identifier, like this: "username (123456789): MESSAGE...". '
             f"You play the role of the user called {BOT_NAME}, or simply Bot; "
             f"your username and unique identifier are ButlerBot and 0. "
-            f"You are observing the user's conversation and normally you do not interfere "
+            f"You are observing the users' conversation and normally you do not interfere "
             f"unless you are explicitly called by name (e.g., 'bot,' 'ButlerBot,' etc.). "
             f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
             f"If you are not explicitly addressed, always respond with {no_reply_token}",
@@ -187,11 +190,8 @@ def main() -> None:
     async def echo_proxy(update, context):
         await echo(update, context, con)
 
-    # on non command i.e message - echo the message on Telegram
+    # on non command i.e. message - echo the message on Telegram
     application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, echo_proxy))
-
-    async def echo_proxy(update, context):
-        await echo(update, context, con)
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
