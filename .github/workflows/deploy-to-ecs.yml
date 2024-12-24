@@ -27,15 +27,20 @@ jobs:
         run: |
           echo "Building and pushing Docker image..."
           cd src/
+          
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:stable .
+          
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:stable
+          
           echo "Image pushed with tag: $IMAGE_TAG"
+          echo "Image pushed with tag:stable"
 
-      - name: Deploy to ECS
+      - name: Force Redeploy ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ vars.TASK_DEFINITION_ARN }}
           service: ${{ vars.SERVICE_NAME }}
           cluster: ${{ vars.CLUSTER_NAME }}
-          container-name: ${{ vars.CONTAINER_NAME }}
-          image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          force-new-deployment: true
