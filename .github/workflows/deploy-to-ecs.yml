@@ -1,0 +1,42 @@
+name: Build the image, push to ECR, and deploy to ECS
+
+on:
+  workflow_dispatch:  # Manually triggered deployment workflow
+
+jobs:
+  deploy:
+    name: Build, Push to ECR, and Deploy to ECS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and Push Docker Image
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          IMAGE_TAG: ${{ github.sha }}
+          ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          echo "Building and pushing Docker image..."
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "Image pushed with tag: $IMAGE_TAG"
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ vars.TASK_DEFINITION_ARN }}
+          service: ${{ vars.SERVICE_NAME }}
+          cluster: ${{ vars.CLUSTER_NAME }}
+          container-name: ${{ vars.CONTAINER_NAME }}
+          image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/<your_ecr_repository_name>:${{ github.sha }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
