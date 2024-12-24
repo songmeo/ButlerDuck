@@ -8,6 +8,14 @@ jobs:
     name: Build, Push to ECR, and Deploy to ECS
     runs-on: ubuntu-latest
 
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      IMAGE_TAG: ${{ github.sha }}
+      ECR_REGISTRY: $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -16,12 +24,6 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Build and Push Docker Image
-        env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          IMAGE_TAG: ${{ github.sha }}
-          ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-          ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
         run: |
           echo "Building and pushing Docker image..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -35,8 +37,4 @@ jobs:
           service: ${{ vars.SERVICE_NAME }}
           cluster: ${{ vars.CLUSTER_NAME }}
           container-name: ${{ vars.CONTAINER_NAME }}
-          image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/<your_ecr_repository_name>:${{ github.sha }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
+          image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
