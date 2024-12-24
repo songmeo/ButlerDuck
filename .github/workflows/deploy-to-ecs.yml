@@ -26,6 +26,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           echo "Building and pushing Docker image..."
+          cd src/
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "Image pushed with tag: $IMAGE_TAG"
