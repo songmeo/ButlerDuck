@@ -1,11 +1,14 @@
-name: Build the image, push to ECR, and deploy to ECS
+name: build and push image to ECR
 
 on:
-  workflow_dispatch:  # Manually triggered deployment workflow
+  workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   deploy:
-    name: Build, Push to ECR, and Deploy to ECS
+    name: build new image and push to ECR
     runs-on: ubuntu-latest
 
     env:
@@ -36,11 +39,3 @@ jobs:
           
           echo "Image pushed with tag: $IMAGE_TAG"
           echo "Image pushed with tag:stable"
-
-      - name: Force Redeploy ECS Service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ vars.TASK_DEFINITION_ARN }}
-          service: ${{ vars.SERVICE_NAME }}
-          cluster: ${{ vars.CLUSTER_NAME }}
-          force-new-deployment: true
