@@ -99,9 +99,9 @@ async def echo(
             "content": f"Each message in the conversation below is prefixed with the username and their unique "
             'identifier, like this: "username (123456789): MESSAGE...". '
             f"You play the role of the user called {BOT_NAME}, or simply Bot; "
-            f"your username and unique identifier are ButlerBot and 0. "
+            f"your username and unique identifier are {BOT_NAME} and 0. "
             f"You are observing the users' conversation and normally you do not interfere "
-            f"unless you are explicitly called by name (e.g., 'bot,' 'ButlerBot,' etc.). "
+            f"unless you are explicitly called by name (e.g., 'bot,' '{BOT_NAME},' etc.). "
             f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
             f"If you are not explicitly addressed, always respond with {no_reply_token}",
         },
@@ -137,7 +137,7 @@ async def echo(
     answer = await ask_ai(text, messages)
     answer = answer.removeprefix(f"{BOT_NAME} (0): ")
     if answer != no_reply_token:
-        cur.execute(  # id, user_id, chat_id, message
+        cur.execute(
             """
             INSERT INTO user_message (chat_id, user_id, message)
             VALUES (%s, 0, %s)
@@ -151,8 +151,6 @@ async def echo(
 
 
 def main() -> None:
-    """Start the bot."""
-    # Create the Application and pass it your bot's token.
     application = Application.builder().token(TOKEN).build()
 
     con = psycopg2.connect(**DB_CONFIG)
