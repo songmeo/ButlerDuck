@@ -103,7 +103,10 @@ async def echo(
             f"You are observing the users' conversation and normally you do not interfere "
             f"unless you are explicitly called by name (e.g., 'bot,' '{BOT_NAME},' etc.). "
             f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
-            f"If you are not explicitly addressed, always respond with {no_reply_token}",
+            f"If you are not explicitly addressed, always respond with {no_reply_token}."
+            "\n\n"
+            f"When you see an arithmetic expression, generate Python code enclosed between [[[ and ]]]. "
+            f"The function to perform the computation is evaluate(), and it accepts a string following Python syntax.",
         },
     ]
     cur.execute(
