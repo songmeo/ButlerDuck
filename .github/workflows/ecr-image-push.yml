@@ -38,4 +38,4 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:stable
           
           echo "Image pushed with tag: $IMAGE_TAG"
-          echo "Image pushed with tag:stable"
+          echo "Image pushed with tag: stable"

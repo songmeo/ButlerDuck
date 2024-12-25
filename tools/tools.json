@@ -1,0 +1,21 @@
+{
+    "type": "function",
+    "function": {
+        "name": "evaluate",
+        "description": "calculate an arithmetic expression",
+        "parameters": {
+            "num1": {
+                "type": "num",
+                "description": "first number",
+            },
+            "num2": {
+                "type": "number",
+                "description": "second number",
+            },
+            "operator": {
+                "type": "string",
+                "description": "The operator for the calculation ('+', '-', '*', '/')",
+            }
+        }
+    }
+}

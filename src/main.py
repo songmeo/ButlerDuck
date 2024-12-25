@@ -2,9 +2,13 @@
 # Copyright Huong Pham <songhuong.phamthi@gmail.com>
 
 import asyncio
+import json
 import logging
+from tools import evaluate
 import psycopg2
 import os
+import json
+import re
 from openai import OpenAI
 from dotenv import load_dotenv
 from telegram import Update
@@ -50,13 +54,42 @@ async def ask_ai(question: str, messages: list) -> str:
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
     def runs_in_background_thread():
-        return client.chat.completions.create(model="gpt-4o-mini", messages=messages)
+        return client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=json.load(open("tools/tools.json", "r")),
+        )
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
-    answer = completion.choices[0].message.content
+    message = completion.choices[0].message
+
+    if message.tool_calls:
+        tool_call = message.tool_calls[0]
+        arguments = json.loads(tool_call["function"]["arguments"])
+        expression = arguments.get("expression")
+        answer = evaluate(expression)  # todo: fix this
+        function_call_result_message = {
+            "role": "tool",
+            "content": json.dumps({"num1": num1, "num2": num2, "result": answer}),
+            "tool_call_id": tool_call["id"],
+        }
+
+    else:
+        response = message.content
+
+    # exp = re.search(r"\[\[\[(.*?)]]]", completion)
+    # if exp and eval(exp.group(1)):
+    #     answer = exp.group(1)
+    #     message = {
+    #         "role": "function",
+    #         "name": "evaluate",
+    #         "content": answer,
+    #     }
+    #     logger.info("function sent answer: %s", answer)
+
     logger.info("messages sent: %s", messages)
     logger.info("bot replied: %s", completion.choices)
-    return answer
+    return response
 
 
 async def echo(
@@ -137,17 +170,17 @@ async def echo(
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
-    answer = await ask_ai(text, messages)
-    answer = answer.removeprefix(f"{BOT_NAME} (0): ")
-    if answer != no_reply_token:
+    response = await ask_ai(text, messages)
+    response = response.removeprefix(f"{BOT_NAME} (0): ")
+    if response != no_reply_token:
         cur.execute(
             """
             INSERT INTO user_message (chat_id, user_id, message)
             VALUES (%s, 0, %s)
             """,
-            (chat_id, answer),
+            (chat_id, response),
         )
-        await update.message.reply_text(answer)
+        await update.message.reply_text(response)
     else:
         logger.info("The bot has nothing to say.")
     con.commit()
