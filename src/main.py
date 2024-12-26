@@ -2,13 +2,12 @@
 # Copyright Huong Pham <songhuong.phamthi@gmail.com>
 
 import asyncio
-import json
 import logging
-from tools import evaluate
+from evaluate import evaluate
+from tools import tools
 import psycopg2
 import os
 import json
-import re
 from openai import OpenAI
 from dotenv import load_dotenv
 from telegram import Update
@@ -23,6 +22,7 @@ load_dotenv()
 
 XAI_API_KEY = os.environ["XAI_API_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
+OPENAI_MODEL = "gpt-4-turbo"
 DB_USER = os.environ["DB_USER"]
 DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
@@ -55,9 +55,9 @@ async def ask_ai(question: str, messages: list) -> str:
 
     def runs_in_background_thread():
         return client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=OPENAI_MODEL,
             messages=messages,
-            tools=json.load(open("tools/tools.json", "r")),
+            tools=tools,
         )
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
@@ -65,29 +65,22 @@ async def ask_ai(question: str, messages: list) -> str:
 
     if message.tool_calls:
         tool_call = message.tool_calls[0]
-        arguments = json.loads(tool_call["function"]["arguments"])
+        logger.info(f"bot decided to call tool id {tool_call.id}")
+        arguments = json.loads(tool_call.function.arguments)
         expression = arguments.get("expression")
-        answer = evaluate(expression)  # todo: fix this
+        answer = evaluate(expression)
         function_call_result_message = {
             "role": "tool",
-            "content": json.dumps({"num1": num1, "num2": num2, "result": answer}),
-            "tool_call_id": tool_call["id"],
+            "content": json.dumps({"result": answer}),
+            "tool_call_id": tool_call.id,
         }
+        messages = [message, function_call_result_message]
+        completion = await loop.run_in_executor(None, runs_in_background_thread)
+        message = completion.choices[0].message
 
-    else:
-        response = message.content
+    response = message.content
 
-    # exp = re.search(r"\[\[\[(.*?)]]]", completion)
-    # if exp and eval(exp.group(1)):
-    #     answer = exp.group(1)
-    #     message = {
-    #         "role": "function",
-    #         "name": "evaluate",
-    #         "content": answer,
-    #     }
-    #     logger.info("function sent answer: %s", answer)
-
-    logger.info("messages sent: %s", messages)
+    logger.info("all messages sent: %s", messages)
     logger.info("bot replied: %s", completion.choices)
     return response
 
@@ -136,10 +129,7 @@ async def echo(
             f"You are observing the users' conversation and normally you do not interfere "
             f"unless you are explicitly called by name (e.g., 'bot,' '{BOT_NAME},' etc.). "
             f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
-            f"If you are not explicitly addressed, always respond with {no_reply_token}."
-            "\n\n"
-            f"When you see an arithmetic expression, generate Python code enclosed between [[[ and ]]]. "
-            f"The function to perform the computation is evaluate(), and it accepts a string following Python syntax.",
+            f"If you are not explicitly addressed, always respond with {no_reply_token}.",
         },
     ]
     cur.execute(
