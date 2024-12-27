@@ -19,3 +19,8 @@ def test_evaluate_name_error() -> None:
 def test_evaluate_syntax_error() -> None:
     # TODO: add PyTest config to the project
     assert evaluate("455 +_( 342") == "SyntaxError"
+
+
+def test_evaluate_zero_division_error() -> None:
+    # TODO: add PyTest config to the project
+    assert evaluate("455 / 0") == "ZeroDivisionError"
