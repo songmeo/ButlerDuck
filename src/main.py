@@ -4,19 +4,14 @@
 import asyncio
 import logging
 from evaluate import evaluate
-from tools import tools
+from tools import TOOLS  # TODO: json.load("tools.json")
 import psycopg2
 import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import (
-    Application,
-    ContextTypes,
-    MessageHandler,
-    filters,
-)
+from telegram.ext import Application, ContextTypes, MessageHandler, filters
 
 load_dotenv()
 
@@ -28,13 +23,6 @@ DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 DB_HOST = os.environ["DB_HOST"]
 TOKEN = os.environ["TOKEN"]
-DB_CONFIG = {
-    "dbname": DB_NAME,
-    "user": DB_USER,
-    "password": DB_PASSWORD,
-    "host": DB_HOST,
-    "port": 5432,
-}
 BOT_NAME = "ButlerBot"
 
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -49,6 +37,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
+# TODO: Exttract ask_ai() into a module called llm.py.
+# Move everything LLM-related into that module, except the login information.
+# Later on we will make it a class.
 async def ask_ai(question: str, messages: list) -> str:
     _ = question
     loop = asyncio.get_running_loop()  # gain access to the scheduler
@@ -57,17 +48,19 @@ async def ask_ai(question: str, messages: list) -> str:
         return client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=messages,
-            tools=tools,
+            tools=TOOLS,
         )
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
     message = completion.choices[0].message
 
+    # TODO: ensure messages with tool_calls do not end up in the database
     if message.tool_calls:
         tool_call = message.tool_calls[0]
-        logger.info(f"bot decided to call tool id {tool_call.id}")
+        # TODO: enhance logs; this information is not sufficient for diagnostics.
+        logger.info("The bot decided to call tool id %s", tool_call.id)
         arguments = json.loads(tool_call.function.arguments)
-        expression = arguments.get("expression")
+        expression = arguments["expression"]
         answer = evaluate(expression)
         function_call_result_message = {
             "role": "tool",
@@ -77,6 +70,8 @@ async def ask_ai(question: str, messages: list) -> str:
         messages = [message, function_call_result_message]
         completion = await loop.run_in_executor(None, runs_in_background_thread)
         message = completion.choices[0].message
+        # TODO: what if this response also contains tool calls? Make this a loop and keep
+        # looping until no tool_calls are present in the LLM response.
 
     response = message.content
 
@@ -160,6 +155,9 @@ async def echo(
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
+    # TODO: enhance error handling. ask_ai() is a complex function.
+    # If something goes wrong in it, catch the exception and show some kind of error message
+    # to the user, explaining what went wrong. Right now the code is too optimistic.
     response = await ask_ai(text, messages)
     response = response.removeprefix(f"{BOT_NAME} (0): ")
     if response != no_reply_token:
@@ -179,7 +177,9 @@ async def echo(
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
 
-    con = psycopg2.connect(**DB_CONFIG)
+    con = psycopg2.connect(
+        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=5432
+    )
     cur = con.cursor()
     cur.execute(
         """

@@ -1,3 +1,6 @@
+# TODO: move everything not related to the sources out of src/.
+# The .json is ok to keep here.
+
 FROM python:3.9-slim
 
 WORKDIR /app

@@ -1,4 +1,4 @@
-TOOLS = [
+[
     {
         "type": "function",
         "function": {
@@ -9,12 +9,12 @@ TOOLS = [
                 "properties": {
                     "expression": {
                         "type": "string",
-                        "description": "the expression in string form",
+                        "description": "the expression in string form"
                     }
-                },
+                }
             },
             "required": ["expression"],
-            "additionalProperties": False,
-        },
+            "additionalProperties": false
+        }
     }
 ]
