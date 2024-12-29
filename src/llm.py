@@ -28,18 +28,18 @@ async def ask_ai(messages: list) -> str:
                 tools=json.load(open("tools.json")),
             )
         except openai.BadRequestError as e:
-            print(f"OpenAI API error: {e}")
-            return "Error: Missing corresponding tool_call responses for tool_call_ids."  # todo return Completion error
+            logger.info(f"OpenAI API error: {e}")
+            return "Error: Missing corresponding tool_call responses for tool_call_ids."
         except Exception as e:
-            print(e)
-            return "An unexpected error occurred."  # todo return Completion error
+            logger.info(e)
+            return "An unexpected error occurred."
 
         return completion
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
     message = completion.choices[0].message
 
-    if message.tool_calls:
+    while message.tool_calls:
         tool_call = message.tool_calls[0]
         logger.info(f"Tool call message: {message}")
         arguments = json.loads(tool_call.function.arguments)
@@ -51,11 +51,13 @@ async def ask_ai(messages: list) -> str:
             "tool_call_id": tool_call.id,
         }
         messages = [message, function_call_result_message]
-        completion = await loop.run_in_executor(None, runs_in_background_thread)
-        message = completion.choices[0].message
+        try:
+            completion = await loop.run_in_executor(None, runs_in_background_thread)
+            message = completion.choices[0].message
+        except Exception as e:
+            logger.error(f"Error processing tool call: {e}")
+            return "Error: Failed to process tool call."
 
-    response = message.content
-
-    logger.info("all messages sent: %s", messages)
-    logger.info("bot replied: %s", completion.choices)
-    return response
+        logger.info("tool_call and call_result messages: %s", messages)
+        logger.info("bot replied: %s", completion.choices)
+    return message.content
