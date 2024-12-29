@@ -1,0 +1,39 @@
+services:
+  bot:
+    build:
+      context: ./src
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      XAI_API_KEY: ${XAI_API_KEY}
+      TOKEN: ${TOKEN}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: database
+    depends_on:
+      - database
+    networks:
+      - bot_network
+
+  database:
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - bot_network
+
+networks:
+  bot_network:
+
+volumes:
+  db_data:

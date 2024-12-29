@@ -1,0 +1,6 @@
+.DS_Store
+.env
+deployment/aws-ecs-task-definition.json
+.idea/
+venv/
+*.db
