@@ -67,5 +67,7 @@ async def ask_ai(messages: list) -> str:
             return f"Unexpected error occurred. Please try again later."
 
         logger.info("tool_call and call_result messages: %s", messages)
-        logger.info("bot replied: %s", completion.choices)
+
+    logger.info("bot replied: %s", completion.choices)
+
     return message.content

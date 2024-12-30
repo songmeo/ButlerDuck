@@ -96,6 +96,7 @@ async def echo(
         )
     try:
         response = await ask_ai(messages)
+        logger.info("all messages: %s", messages)
     except Exception as e:
         logger.error(f"Error while calling the LLM: {e}")
         return
