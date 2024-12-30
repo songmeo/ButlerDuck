@@ -29,11 +29,14 @@ async def ask_ai(messages: list) -> str:
             )
         except openai.BadRequestError as e:
             logger.info(f"OpenAI API error: {e}")
-            return "Error: Missing corresponding tool_call responses for tool_call_ids."
+            raise ValueError(
+                "Missing corresponding tool_call responses for tool_call_ids."
+            ) from e
         except Exception as e:
-            logger.info(e)
-            return "An unexpected error occurred."
-
+            logger.info(f"Unexpected error: {e}")
+            raise Exception(
+                "An unexpected error occurred while processing the tool call."
+            ) from e
         return completion
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
@@ -54,10 +57,17 @@ async def ask_ai(messages: list) -> str:
         try:
             completion = await loop.run_in_executor(None, runs_in_background_thread)
             message = completion.choices[0].message
+        except ValueError as ve:
+            logger.error(f"Tool call validation error: {ve}")
+            return (
+                f"There is problem with our calculation tool! Please try again later."
+            )
         except Exception as e:
-            logger.error(f"Error processing tool call: {e}")
-            return "Error: Failed to process tool call."
+            logger.error(f"Unexpected error during tool call: {e}")
+            return f"Unexpected error occurred. Please try again later."
 
         logger.info("tool_call and call_result messages: %s", messages)
-        logger.info("bot replied: %s", completion.choices)
+
+    logger.info("bot replied: %s", completion.choices)
+
     return message.content
