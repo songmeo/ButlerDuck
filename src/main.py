@@ -155,8 +155,16 @@ def main() -> None:
     async def echo_proxy(update, context):
         await echo(update, context, con)
 
-    # on non command i.e. message - echo the message on Telegram
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, echo_proxy))
+    # on non command i.e. text message
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_proxy))
+
+    async def sticker_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        _ = context
+        sticker = update.message.sticker
+        await update.message.reply_text(f"Nice sticker! It's {sticker.emoji} emoji.")
+
+    # on stickers
+    application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
