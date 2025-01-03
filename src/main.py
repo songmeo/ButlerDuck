@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 # Copyright Song Meo <songmeo@pm.me>
+import time
 
 import psycopg2
 import os
+
 from dotenv import load_dotenv
-from telegram import Update
-from telegram.ext import Application, ContextTypes, MessageHandler, filters
+from telegram import Update, error
+from telegram.ext import (
+    Application,
+    ContextTypes,
+    MessageHandler,
+    filters,
+    CallbackContext,
+)
 from llm import ask_ai
 from logger import logger
 
@@ -166,6 +174,20 @@ def main() -> None:
 
     # on stickers
     application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
+
+    async def error_handler(update: Update, context: CallbackContext) -> None:
+        if isinstance(context.error, error.Conflict):
+            logger.error(
+                "Conflict error detected: Another bot instance is likely running."
+            )
+            await application.bot.delete_webhook(drop_pending_updates=True)
+            time.sleep(10)  # Wait before retrying (adjust as needed)
+        else:
+            logger.error(
+                f"Update {update} caused error {context.error}", exc_info=context.error
+            )
+
+    application.add_error_handler(error_handler)
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
