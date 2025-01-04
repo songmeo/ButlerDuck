@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Copyright Song Meo <songmeo@pm.me>
-import time
 
+import asyncio
+import time
 import psycopg2
 import os
-
 from dotenv import load_dotenv
 from telegram import Update, error
 from telegram.ext import (
@@ -127,10 +127,25 @@ async def echo(
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
 
-    con = psycopg2.connect(
-        dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=5432
-    )
-    cur = con.cursor()
+    for _ in range(5):
+        try:
+            con = psycopg2.connect(
+                dbname=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                host=DB_HOST,
+                port=5432,
+            )
+            cur = con.cursor()
+            logger.info("Connection successful!")
+            break  # success! no need to repeat
+        except psycopg2.Error as e:
+            logger.error("Error while connecting to the database:", e)
+            time.sleep(5)
+    else:
+        logger.error("Can't connect to the database. Abort.")
+        exit(1)
+
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS "user" (
@@ -180,8 +195,7 @@ def main() -> None:
             logger.error(
                 "Conflict error detected: Another bot instance is likely running."
             )
-            await application.bot.delete_webhook(drop_pending_updates=True)
-            time.sleep(10)  # Wait before retrying (adjust as needed)
+            await asyncio.sleep(10)  # Wait before retrying (adjust as needed)
         else:
             logger.error(
                 f"Update {update} caused error {context.error}", exc_info=context.error
