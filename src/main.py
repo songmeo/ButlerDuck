@@ -46,7 +46,7 @@ async def echo(
     )
     cur.execute(
         """
-        INSERT INTO "user" (tg_id, name)
+        INSERT INTO tg_user (tg_id, name)
         VALUES (%s, %s)
         ON CONFLICT (tg_id) DO NOTHING
         """,
@@ -79,14 +79,14 @@ async def echo(
         """
         SELECT 
             user_message.user_id,
-            "user".name AS username,
+            tg_user.name AS username,
             user_message.message
         FROM 
             user_message
         JOIN
-            "user"
+            tg_user
         ON 
-            user_message.user_id = "user".tg_id
+            user_message.user_id = tg_user.tg_id
         WHERE 
             user_message.chat_id = %s
         ORDER BY 
@@ -149,7 +149,7 @@ def main() -> None:
 
     cur.execute(
         """
-        CREATE TABLE IF NOT EXISTS "user" (
+        CREATE TABLE IF NOT EXISTS tg_user (
             id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
             tg_id BIGINT NOT NULL UNIQUE,
             name TEXT
@@ -158,7 +158,7 @@ def main() -> None:
     )
     cur.execute(
         """
-        INSERT INTO "user" (tg_id, name)
+        INSERT INTO tg_user (tg_id, name)
         VALUES (%s, %s)
         ON CONFLICT (tg_id) DO NOTHING
         """,
@@ -171,7 +171,7 @@ def main() -> None:
             chat_id BIGINT NOT NULL,
             user_id BIGINT NOT NULL,
             message TEXT NOT NULL,
-            CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES "user"(tg_id) ON DELETE CASCADE
+            CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES tg_user(tg_id) ON DELETE CASCADE
         )
         """
     )
