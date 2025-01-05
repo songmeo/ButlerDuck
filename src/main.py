@@ -71,7 +71,8 @@ async def echo(
             f"You are observing the users' conversation and normally you do not interfere "
             f"unless you are explicitly called by name (e.g., 'bot,' '{BOT_NAME},' etc.). "
             f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
-            f"If you are not explicitly addressed, always respond with {no_reply_token}.",
+            f"If you are not explicitly addressed, always respond with {no_reply_token}."
+            f"When parsing answer from tool call, don't use laTex.",
         },
     ]
     cur.execute(
@@ -139,7 +140,7 @@ def main() -> None:
             cur = con.cursor()
             logger.info("Connection successful!")
             break  # success! no need to repeat
-        except psycopg2.Error as e:
+        except psycopg2.OperationalError as e:
             logger.error("Error while connecting to the database:", e)
             time.sleep(5)
     else:
