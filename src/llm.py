@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 
@@ -9,7 +10,6 @@ from logger import logger
 
 # todo: make this a class
 
-XAI_API_KEY = os.environ["XAI_API_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 OPENAI_MODEL = "gpt-4-turbo"
 
@@ -71,3 +71,25 @@ async def ask_ai(messages: list) -> str:
     logger.info("bot replied: %s", completion.choices)
 
     return message.content
+
+
+async def analyze_photo(image_path):
+    with open(image_path, "rb") as image_file:
+        base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+
+    response = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                    },
+                ],
+            }
+        ],
+    )
+
+    return response.content

@@ -3,6 +3,8 @@
 
 import asyncio
 import time
+import aiohttp
+import requests
 import psycopg2
 import os
 from dotenv import load_dotenv
@@ -14,7 +16,7 @@ from telegram.ext import (
     filters,
     CallbackContext,
 )
-from llm import ask_ai
+from llm import ask_ai, analyze_photo
 from logger import logger
 
 load_dotenv()
@@ -180,16 +182,10 @@ def main() -> None:
     async def echo_proxy(update, context):
         await echo(update, context, con)
 
-    # on non command i.e. text message
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_proxy))
-
     async def sticker_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _ = context
         sticker = update.message.sticker
         await update.message.reply_text(f"Nice sticker! It's {sticker.emoji} emoji.")
-
-    # on stickers
-    application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 
     async def error_handler(update: Update, context: CallbackContext) -> None:
         if isinstance(context.error, error.Conflict):
@@ -201,6 +197,34 @@ def main() -> None:
             logger.error(
                 f"Update {update} caused error {context.error}", exc_info=context.error
             )
+
+    async def photo_handler(update: Update, context: CallbackContext) -> None:
+        file_id = update.message.photo[-1].file_id
+        file_info = await context.bot.get_file(file_id)
+        file_path = file_info.file_path
+
+        response = requests.get(f"https://api.telegram.org/file/bot{TOKEN}/{file_path}")
+        with open("image.jpg", "wb") as f:
+            f.write(response.content)
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
+            ) as response:
+                if response.status == 200:
+                    with open("image.jpg", "wb") as f:
+                        f.write(await response.read())
+
+        await analyze_photo("image.jpg")
+
+        # Clean up
+        os.remove("image.jpg")
+
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_proxy))
+
+    application.add_handler(MessageHandler(filters.PHOTO, photo_handler))
+
+    application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 
     application.add_error_handler(error_handler)
 
