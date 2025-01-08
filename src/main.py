@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # Copyright Song Meo <songmeo@pm.me>
 
-from asyncio import Lock, sleep, Queue
 import asyncio
 import time
 import psycopg2
 import os
+from typing import List
 from dotenv import load_dotenv
 from telegram import Update, error
 from telegram.ext import (
@@ -28,39 +28,18 @@ TOKEN = os.environ["TOKEN"]
 BOT_NAME = "ButlerBot"
 
 
-async def echo(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect
+async def generate_response(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    con: psycopg2.connect,
 ) -> None:
     _ = context
-    """Echo the user message."""
-    logger.info(
-        "Mew message from chat %s, user %s",
-        update.message.chat_id,
-        update.message.from_user.id,
-    )
-    text = update.message.text
-    cur = con.cursor()
     chat_id, user_id, username = (
         update.message.chat_id,
         update.message.from_user.id,
         update.message.from_user.username,
     )
-    cur.execute(
-        """
-        INSERT INTO tg_user (tg_id, name)
-        VALUES (%s, %s)
-        ON CONFLICT (tg_id) DO NOTHING
-        """,
-        (user_id, username),
-    )
-    cur.execute(
-        """
-        INSERT INTO user_message (chat_id, user_id, message)
-        VALUES (%s, %s, %s)
-        """,
-        (chat_id, user_id, text),
-    )
-    con.commit()
+
     no_reply_token = "-"
     messages = [
         {
@@ -76,6 +55,7 @@ async def echo(
             f"When parsing answer from tool call, don't use laTex.",
         },
     ]
+    cur = con.cursor()
     cur.execute(
         """
         SELECT 
@@ -91,7 +71,7 @@ async def echo(
         WHERE 
             user_message.chat_id = %s
         ORDER BY 
-            user_message.id
+            user_message.id DESC
         LIMIT 1000;
         """,
         (chat_id,),
@@ -106,7 +86,7 @@ async def echo(
         )
     try:
         response = await ask_ai(messages)
-        logger.info("all messages: %s", messages)
+        logger.info("all messages: %s", messages[-10:])
     except Exception as e:
         logger.error(f"Error while calling the LLM: {e}")
         return
@@ -123,6 +103,38 @@ async def echo(
         await update.message.reply_text(response)
     else:
         logger.info("The bot has nothing to say.")
+    con.commit()
+
+
+async def add_message_to_db(
+    update: Update,
+    con: psycopg2.connect,
+) -> None:
+    cur = con.cursor()
+    chat_id, user_id, username = (
+        update.message.chat_id,
+        update.message.from_user.id,
+        update.message.from_user.username,
+    )
+
+    logger.info("Mew message from chat %s, user %s", chat_id, user_id)
+
+    text = update.message.text
+    cur.execute(
+        """
+        INSERT INTO tg_user (tg_id, name)
+        VALUES (%s, %s)
+        ON CONFLICT (tg_id) DO NOTHING
+        """,
+        (user_id, username),
+    )
+    cur.execute(
+        """
+        INSERT INTO user_message (chat_id, user_id, message)
+        VALUES (%s, %s, %s)
+        """,
+        (chat_id, user_id, text),
+    )
     con.commit()
 
 
@@ -178,54 +190,33 @@ def main() -> None:
     )
     con.commit()
 
-    user_locks = {}
+    updates_queue = asyncio.Queue()
 
-    async def get_user_lock(chat_id, user_id):
-        key = (chat_id, user_id)
-        if key not in user_locks:
-            user_locks[key] = Lock()
-        return user_locks[key]
+    async def gather_updates(update):
+        """Add an update to the shared queue."""
+        await add_message_to_db(update, con)
+        await updates_queue.put(update)
 
-    user_message_queues = {}
+    async def echo(update, context):
+        """Process updates dynamically over a 5-second window."""
+        # Add the current update to the queue
+        await gather_updates(update)
 
-    async def echo_proxy(update, context):
-        chat_id = update.message.chat_id
-        user_id = update.message.from_user.id
-        message = update.message.text  # todo: currently this doesn't cumulate messages
+        # Collect updates for 3 seconds
+        try:
+            while True:
+                new_update = await asyncio.wait_for(updates_queue.get(), timeout=3)
+                # Process each update dynamically as it's retrieved
+                print(f"Processed update: {new_update}")
+        except asyncio.TimeoutError:
+            # Timeout after 5 seconds of no new updates
+            pass
 
-        if (chat_id, user_id) not in user_message_queues:
-            user_message_queues[(chat_id, user_id)] = Queue()
-
-        queue = user_message_queues[(chat_id, user_id)]
-        # Add the current message to the queue
-        await queue.put(message)
-
-        # Lock to ensure only one handler processes messages for a user at a time
-        lock = await get_user_lock(chat_id, user_id)
-        async with lock:
-            messages = []
-            logger.info(
-                f"Lock acquired for chat {chat_id}, user {user_id}. Waiting for 5 seconds..."
-            )
-            timeout = 5
-            while timeout > 0:
-                try:
-                    # Attempt to get a message from the queue with a 1-second timeout
-                    new_message = await queue.get(timeout=1)
-                    messages.append(new_message)
-                    logger.info(f"Appended message: {new_message}")
-                except Exception:
-                    # If no message is received within 1 second, reduce timeout
-                    pass
-                timeout -= 1
-            messages += message
-            await echo(update, context, con, messages)  # Process user's messages
-            logger.info(f"Lock released for chat {chat_id}, user {user_id}.")
-
-        await echo(update, context, con)
+        # Generate the response after processing updates
+        await generate_response(update, context, con)
 
     # on non command i.e. text message
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_proxy))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
     async def sticker_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _ = context
@@ -248,7 +239,7 @@ def main() -> None:
 
     application.add_error_handler(error_handler)
     # on non command i.e. message - echo the message on Telegram
-    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, echo_proxy))
+    application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, echo))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
