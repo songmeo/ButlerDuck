@@ -2,7 +2,6 @@ import asyncio
 import base64
 import json
 import os
-
 import openai
 from openai import OpenAI
 from evaluate import evaluate
@@ -73,23 +72,33 @@ async def ask_ai(messages: list) -> str:
     return message.content
 
 
-async def analyze_photo(image_path):
+async def analyze_photo(update, image_path):
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
-    response = client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                    },
-                ],
-            }
-        ],
-    )
+    await update.message.reply_text("Analyzing your photo...")
+    logger.info(f"Analyzing the photo")
 
-    return response.content
+    try:
+        completion = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            },
+                        },
+                    ],
+                }
+            ],
+        )
+        message = completion.choices[0].message
+        logger.info("bot replied: %s", completion.choices)
+    except Exception as e:
+        logger.info(f"Unexpected error: {e}")
+        raise Exception("An unexpected error occurred while analyzing photo.")
+    return message.content

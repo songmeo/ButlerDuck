@@ -3,8 +3,6 @@
 
 import asyncio
 import time
-import aiohttp
-import requests
 import psycopg2
 import os
 from dotenv import load_dotenv
@@ -16,7 +14,7 @@ from telegram.ext import (
     filters,
     CallbackContext,
 )
-from llm import ask_ai, analyze_photo
+from handler import text_handler, photo_handler
 from logger import logger
 
 load_dotenv()
@@ -27,104 +25,6 @@ DB_NAME = os.environ["DB_NAME"]
 DB_HOST = os.environ["DB_HOST"]
 TOKEN = os.environ["TOKEN"]
 BOT_NAME = "ButlerBot"
-
-
-async def echo(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect
-) -> None:
-    _ = context
-    """Echo the user message."""
-    logger.info(
-        "Mew message from chat %s, user %s",
-        update.message.chat_id,
-        update.message.from_user.id,
-    )
-    text = update.message.text
-    cur = con.cursor()
-    chat_id, user_id, username = (
-        update.message.chat_id,
-        update.message.from_user.id,
-        update.message.from_user.username,
-    )
-    cur.execute(
-        """
-        INSERT INTO tg_user (tg_id, name)
-        VALUES (%s, %s)
-        ON CONFLICT (tg_id) DO NOTHING
-        """,
-        (user_id, username),
-    )
-    cur.execute(
-        """
-        INSERT INTO user_message (chat_id, user_id, message)
-        VALUES (%s, %s, %s)
-        """,
-        (chat_id, user_id, text),
-    )
-    con.commit()
-    no_reply_token = "-"
-    messages = [
-        {
-            "role": "system",
-            "content": f"Each message in the conversation below is prefixed with the username and their unique "
-            'identifier, like this: "username (123456789): MESSAGE...". '
-            f"You play the role of the user called {BOT_NAME}, or simply Bot; "
-            f"your username and unique identifier are {BOT_NAME} and 0. "
-            f"You are observing the users' conversation and normally you do not interfere "
-            f"unless you are explicitly called by name (e.g., 'bot,' '{BOT_NAME},' etc.). "
-            f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
-            f"If you are not explicitly addressed, always respond with {no_reply_token}."
-            f"When parsing answer from tool call, don't use laTex.",
-        },
-    ]
-    cur.execute(
-        """
-        SELECT 
-            user_message.user_id,
-            tg_user.name AS username,
-            user_message.message
-        FROM 
-            user_message
-        JOIN
-            tg_user
-        ON 
-            user_message.user_id = tg_user.tg_id
-        WHERE 
-            user_message.chat_id = %s
-        ORDER BY 
-            user_message.id
-        LIMIT 1000;
-        """,
-        (chat_id,),
-    )
-    all_messages = cur.fetchall()
-    for user_id, user_name, message in all_messages:
-        messages.append(
-            {
-                "role": "assistant" if user_id == 0 else "user",
-                "content": f"{user_name} ({user_id}): {message}",
-            }
-        )
-    try:
-        response = await ask_ai(messages)
-        logger.info("all messages: %s", messages)
-    except Exception as e:
-        logger.error(f"Error while calling the LLM: {e}")
-        return
-
-    response = response.removeprefix(f"{BOT_NAME} (0): ")
-    if response != no_reply_token:
-        cur.execute(
-            """
-            INSERT INTO user_message (chat_id, user_id, message)
-            VALUES (%s, 0, %s)
-            """,
-            (chat_id, response),
-        )
-        await update.message.reply_text(response)
-    else:
-        logger.info("The bot has nothing to say.")
-    con.commit()
 
 
 def main() -> None:
@@ -179,9 +79,6 @@ def main() -> None:
     )
     con.commit()
 
-    async def echo_proxy(update, context):
-        await echo(update, context, con)
-
     async def sticker_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _ = context
         sticker = update.message.sticker
@@ -192,35 +89,18 @@ def main() -> None:
             logger.error(
                 "Conflict error detected: Another bot instance is likely running."
             )
-            await asyncio.sleep(10)  # Wait before retrying (adjust as needed)
+            await asyncio.sleep(10)  # Wait before retrying
         else:
             logger.error(
                 f"Update {update} caused error {context.error}", exc_info=context.error
             )
 
-    async def photo_handler(update: Update, context: CallbackContext) -> None:
-        file_id = update.message.photo[-1].file_id
-        file_info = await context.bot.get_file(file_id)
-        file_path = file_info.file_path
+    async def text_handler_proxy(update, context):
+        await text_handler(update, context, con)
 
-        response = requests.get(f"https://api.telegram.org/file/bot{TOKEN}/{file_path}")
-        with open("image.jpg", "wb") as f:
-            f.write(response.content)
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
-            ) as response:
-                if response.status == 200:
-                    with open("image.jpg", "wb") as f:
-                        f.write(await response.read())
-
-        await analyze_photo("image.jpg")
-
-        # Clean up
-        os.remove("image.jpg")
-
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo_proxy))
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy)
+    )
 
     application.add_handler(MessageHandler(filters.PHOTO, photo_handler))
 
