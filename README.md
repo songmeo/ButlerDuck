@@ -5,11 +5,20 @@ It simplifies task management by assisting users with to-do lists, shopping list
 
 👉 Check it out: [@llm_butler_bot](https://t.me/llm_butler_bot)
 
+## Features
+
+#### **1. Photo Analysis** (Just Launched 🚀) 
+
+<img src="images/photo_analysis.png" alt="Photo analysis" width="400" />
+
+#### **2. Math computation** 
+
+powered by tool calling feature in GPT-4 model.
+
 
 ## Deployment
 
-The bot is deployed on an AWS EC2-backed ECS.
-
+The bot is deployed on ECS Fargate and RDS, optimized for cost saving.
 
 ## License
 
