@@ -12,13 +12,24 @@ from llm import ask_ai, analyze_photo
 from logger import logger
 
 BOT_NAME = "ButlerBot"
+no_reply_token = "-"
+SYSTEM_PROMPT = f"""
+    Each message in the conversation below is prefixed with the username and their unique 
+    identifier, like this: "username (123456789): MESSAGE...". '
+    You play the role of the user called {BOT_NAME}, or simply Bot;
+    your username and unique identifier are {BOT_NAME} and 0. 
+    You are observing the users' conversation and normally you do not interfere 
+    unless you are explicitly called by name (e.g., 'bot,' '{BOT_NAME},' etc.). 
+    Explicit mentions include cases where your name or identifier appears anywhere in the message. 
+    If you are not explicitly addressed, always respond with {no_reply_token}.
+    When answering, don't use LaTeX.
+    """
 
 
 async def text_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect
 ) -> None:
     _ = context
-    """Echo the user message."""
     logger.info(
         "Mew message from chat %s, user %s",
         update.message.chat_id,
@@ -47,21 +58,7 @@ async def text_handler(
         (chat_id, user_id, text),
     )
     con.commit()
-    no_reply_token = "-"
-    messages = [
-        {
-            "role": "system",
-            "content": f"Each message in the conversation below is prefixed with the username and their unique "
-            'identifier, like this: "username (123456789): MESSAGE...". '
-            f"You play the role of the user called {BOT_NAME}, or simply Bot; "
-            f"your username and unique identifier are {BOT_NAME} and 0. "
-            f"You are observing the users' conversation and normally you do not interfere "
-            f"unless you are explicitly called by name (e.g., 'bot,' '{BOT_NAME},' etc.). "
-            f"Explicit mentions include cases where your name or identifier appears anywhere in the message. "
-            f"If you are not explicitly addressed, always respond with {no_reply_token}."
-            f"When parsing answer from tool call, don't use laTex.",
-        },
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     cur.execute(
         """
         SELECT 
@@ -77,7 +74,7 @@ async def text_handler(
         WHERE 
             user_message.chat_id = %s
         ORDER BY 
-            user_message.id
+            user_message.id ASC
         LIMIT 1000;
         """,
         (chat_id,),
@@ -112,7 +109,9 @@ async def text_handler(
     con.commit()
 
 
-async def photo_handler(update: Update, context: CallbackContext) -> None:
+async def photo_handler(
+    update: Update, context: CallbackContext
+) -> None:
     try:
         file_id = update.message.photo[-1].file_id
         file_info = await context.bot.get_file(file_id)

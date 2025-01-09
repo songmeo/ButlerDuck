@@ -101,4 +101,5 @@ async def analyze_photo(update, image_path):
     except Exception as e:
         logger.info(f"Unexpected error: {e}")
         raise Exception("An unexpected error occurred while analyzing photo.")
+
     return message.content
