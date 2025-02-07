@@ -86,21 +86,15 @@ def main() -> None:
 
     async def error_handler(update: Update, context: CallbackContext) -> None:
         if isinstance(context.error, error.Conflict):
-            logger.error(
-                "Conflict error detected: Another bot instance is likely running."
-            )
+            logger.error("Conflict error detected: Another bot instance is likely running.")
             await asyncio.sleep(10)  # Wait before retrying
         else:
-            logger.error(
-                f"Update {update} caused error {context.error}", exc_info=context.error
-            )
+            logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
     async def text_handler_proxy(update, context):
         await text_handler(update, context, con)
 
-    application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy)
-    )
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 
     application.add_handler(MessageHandler(filters.PHOTO, photo_handler))
 

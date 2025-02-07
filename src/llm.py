@@ -28,14 +28,10 @@ async def ask_ai(messages: list) -> str:
             )
         except openai.BadRequestError as e:
             logger.info(f"OpenAI API error: {e}")
-            raise ValueError(
-                "Missing corresponding tool_call responses for tool_call_ids."
-            ) from e
+            raise ValueError("Missing corresponding tool_call responses for tool_call_ids.") from e
         except Exception as e:
             logger.info(f"Unexpected error: {e}")
-            raise Exception(
-                "An unexpected error occurred while processing the tool call."
-            ) from e
+            raise Exception("An unexpected error occurred while processing the tool call.") from e
         return completion
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
@@ -58,9 +54,7 @@ async def ask_ai(messages: list) -> str:
             message = completion.choices[0].message
         except ValueError as ve:
             logger.error(f"Tool call validation error: {ve}")
-            return (
-                f"There is problem with our calculation tool! Please try again later."
-            )
+            return f"There is problem with our calculation tool! Please try again later."
         except Exception as e:
             logger.error(f"Unexpected error during tool call: {e}")
             return f"Unexpected error occurred. Please try again later."
@@ -88,9 +82,7 @@ async def analyze_photo(update, image_path):
                     "content": [
                         {
                             "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            },
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
                         },
                     ],
                 }

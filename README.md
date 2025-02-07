@@ -1,30 +1,21 @@
 # ButlerBot
 
-**ButlerBot** is a Telegram bot powered by LLM.  
-It simplifies task management by assisting users with to-do lists, shopping lists, reminders, and more.  
+ButlerBot is an LLM-powered Telegram bot running on GPT-4-turbo.
+Its main role is to serve as an AI assistant. I personally use it for shopping lists, reminders, and casual chats.
 
-👉 Check it out: [@llm_butler_bot](https://t.me/llm_butler_bot)
+Check it out: [@llm_butler_bot](https://t.me/llm_butler_bot)
 
 ## Features
 
-#### **1. Photo Analysis** (Just Launched 🚀) 
+#### **1. Photo Analysis**
 
 <img src="images/photo_analysis.png" alt="Photo analysis" width="400" />
 
-#### **2. Math computation** 
+#### **2. Reminders** 
 
-powered by tool calling feature in GPT-4 model.
+_(upcoming)_ see [issue-11](https://github.com/songmeo/ButlerBot/issues/11) for progress.
 
+#### **3. Read webpage** 
 
-## Deployment
+_(upcoming)_ see [issue-18](https://github.com/songmeo/ButlerBot/issues/18) for progress.
 
-The bot is deployed on ECS Fargate and RDS, optimized for cost saving.
-
-## License
-
-This project is licensed under the MIT License.
-
-
-## Contact
-
-📧 Email: [songmeo@pm.me](mailto:songmeo@pm.me)
