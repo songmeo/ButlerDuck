@@ -26,9 +26,7 @@ SYSTEM_PROMPT = f"""
     """
 
 
-async def text_handler(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect
-) -> None:
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect) -> None:
     _ = context
     logger.info(
         "Mew message from chat %s, user %s",
@@ -109,9 +107,7 @@ async def text_handler(
     con.commit()
 
 
-async def photo_handler(
-    update: Update, context: CallbackContext
-) -> None:
+async def photo_handler(update: Update, context: CallbackContext) -> None:
     try:
         file_id = update.message.photo[-1].file_id
         file_info = await context.bot.get_file(file_id)
@@ -129,9 +125,7 @@ async def photo_handler(
                             f.write(response.read())
                         logger.info(f"File downloaded successfully: {file_name}")
                     else:
-                        logger.error(
-                            f"Failed to download the file. Status code: {response.status}"
-                        )
+                        logger.error(f"Failed to download the file. Status code: {response.status}")
             except Exception as e:
                 logger.error(f"Unexpected error while downloading the file: {e}")
 
