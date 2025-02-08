@@ -1,0 +1,14 @@
+name: Test
+on:
+  - push
+  - pull_request
+jobs:
+  nox:
+    runs-on: ubuntu-latest
+    name: Nox
+    steps:
+    - uses: actions/checkout@v4
+    # language=bash
+    - run: |
+        pip install nox
+        nox

@@ -1,7 +1,7 @@
 import asyncio
+import base64
 import json
 import os
-
 import openai
 from openai import OpenAI
 from evaluate import evaluate
@@ -9,7 +9,6 @@ from logger import logger
 
 # todo: make this a class
 
-XAI_API_KEY = os.environ["XAI_API_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 OPENAI_MODEL = "gpt-4-turbo"
 
@@ -29,14 +28,10 @@ async def ask_ai(messages: list) -> str:
             )
         except openai.BadRequestError as e:
             logger.info(f"OpenAI API error: {e}")
-            raise ValueError(
-                "Missing corresponding tool_call responses for tool_call_ids."
-            ) from e
+            raise ValueError("Missing corresponding tool_call responses for tool_call_ids.") from e
         except Exception as e:
             logger.info(f"Unexpected error: {e}")
-            raise Exception(
-                "An unexpected error occurred while processing the tool call."
-            ) from e
+            raise Exception("An unexpected error occurred while processing the tool call.") from e
         return completion
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
@@ -59,9 +54,7 @@ async def ask_ai(messages: list) -> str:
             message = completion.choices[0].message
         except ValueError as ve:
             logger.error(f"Tool call validation error: {ve}")
-            return (
-                f"There is problem with our calculation tool! Please try again later."
-            )
+            return f"There is problem with our calculation tool! Please try again later."
         except Exception as e:
             logger.error(f"Unexpected error during tool call: {e}")
             return f"Unexpected error occurred. Please try again later."
@@ -69,5 +62,36 @@ async def ask_ai(messages: list) -> str:
         logger.info("tool_call and call_result messages: %s", messages)
 
     logger.info("bot replied: %s", completion.choices)
+
+    return message.content
+
+
+async def analyze_photo(update, image_path):
+    with open(image_path, "rb") as image_file:
+        base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+
+    await update.message.reply_text("Analyzing your photo...")
+    logger.info(f"Analyzing the photo")
+
+    try:
+        completion = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                        },
+                    ],
+                }
+            ],
+        )
+        message = completion.choices[0].message
+        logger.info("bot replied: %s", completion.choices)
+    except Exception as e:
+        logger.info(f"Unexpected error: {e}")
+        raise Exception("An unexpected error occurred while analyzing photo.")
 
     return message.content
