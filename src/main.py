@@ -14,7 +14,7 @@ from telegram.ext import (
     filters,
     CallbackContext,
 )
-from handler import text_handler, photo_handler
+from handler import photo_handler, store_message, generate_response
 from logger import logger
 
 load_dotenv()
@@ -92,7 +92,10 @@ def main() -> None:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
     async def text_handler_proxy(update, context):
-        await text_handler(update, context, con)
+        _ = context
+        await store_message(update, con)
+        await asyncio.sleep(5)  # wait 5 seconds for new messages for
+        await generate_response(update, con)
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 
