@@ -91,11 +91,19 @@ def main() -> None:
         else:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
+    delaying = asyncio.Lock()
+
+    async def delay_then_response(update, con):
+        async with delaying:
+            await asyncio.sleep(5)  # Wait 5 seconds for new messages
+            await generate_response(update, con)
+
     async def text_handler_proxy(update, context):
         _ = context
         await store_message(update, con)
-        await asyncio.sleep(5)  # wait 5 seconds for new messages for
-        await generate_response(update, con)
+
+        if not delaying.locked():
+            _ = asyncio.create_task(delay_then_response(update, con))  # run the delay in background
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 
