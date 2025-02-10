@@ -74,7 +74,7 @@ async def analyze_photo(update, image_path):
     logger.info(f"Analyzing the photo")
 
     try:
-        completion = client.chat.completions.create(
+        completion = await client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[
                 {
