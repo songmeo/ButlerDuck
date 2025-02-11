@@ -95,7 +95,7 @@ def main() -> None:
 
     async def delay_then_response(update, con):
         async with delaying:
-            await asyncio.sleep(5)  # Wait 5 seconds for new messages
+            await asyncio.sleep(3)  # Wait 3 seconds for new messages
             await generate_response(update, con)
 
     async def text_handler_proxy(update, context):
