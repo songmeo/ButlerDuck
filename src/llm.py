@@ -73,25 +73,32 @@ async def analyze_photo(update, image_path):
     await update.message.reply_text("Analyzing your photo...")
     logger.info(f"Analyzing the photo")
 
-    try:
-        completion = await client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                        },
-                    ],
-                }
-            ],
-        )
-        message = completion.choices[0].message
-        logger.info("bot replied: %s", completion.choices)
-    except Exception as e:
-        logger.info(f"Unexpected error: {e}")
-        raise Exception("An unexpected error occurred while analyzing photo.")
+    loop = asyncio.get_running_loop()
+
+    def runs_in_background_thread():
+        try:
+            # noinspection PyShadowingNames
+            completion = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                            },
+                        ],
+                    }
+                ],
+            )
+            logger.info("bot replied: %s", completion.choices)
+        except Exception as e:
+            logger.info(f"Unexpected error: {e}")
+            raise Exception("An unexpected error occurred while analyzing photo.")
+        return completion
+
+    completion = await loop.run_in_executor(None, runs_in_background_thread)
+    message = completion.choices[0].message
 
     return message.content
