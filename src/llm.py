@@ -30,10 +30,10 @@ async def ask_ai(messages: list) -> str | None:
                 tools=json.load(open("tools.json")),
             )
         except openai.BadRequestError as e:
-            logger.info(f"OpenAI API error: {e}")
+            logger.error(f"OpenAI API error: {e}")
             raise ValueError("Missing corresponding tool_call responses for tool_call_ids.") from e
         except Exception as e:
-            logger.info(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error: {e}")
             raise Exception("An unexpected error occurred while processing the tool call.") from e
         return completion
 
@@ -76,7 +76,7 @@ async def analyze_photo(update: Update, image_path: str) -> str | None:
     if update.message:
         await update.message.reply_text("Analyzing your photo...")
     else:
-        logger.info(f"This update doesn't have any message.")
+        logger.error(f"This update doesn't have any message.")
         raise Exception("No photo sent.")
 
     logger.info(f"Analyzing the photo")
@@ -102,7 +102,7 @@ async def analyze_photo(update: Update, image_path: str) -> str | None:
             )
             logger.info("bot replied: %s", completion.choices)
         except Exception as e:
-            logger.info(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error: {e}")
             raise Exception("An unexpected error occurred while analyzing photo.")
         return completion
 

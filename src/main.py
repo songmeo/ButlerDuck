@@ -87,7 +87,7 @@ def main() -> None:
             sticker = update.message.sticker
             await update.message.reply_text(f"Nice sticker! It's {sticker.emoji} emoji.")
         else:
-            logger.info(f"This update doesn't have any message or sticker.")
+            logger.error(f"This update doesn't have any message or sticker.")
             raise Exception("No photo sent.")
 
     async def error_handler(

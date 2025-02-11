@@ -3,6 +3,7 @@ import uuid
 import urllib.request
 import psycopg2
 import os
+
 from telegram import Update
 from telegram.ext import (
     ContextTypes,
@@ -28,6 +29,10 @@ SYSTEM_PROMPT = f"""
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect) -> None:
     _ = context
+    if update.message is None or update.message.from_user is None:
+        logger.info(f"This update is missing the message or the sender.")
+        raise Exception("update doesn't have message or from_user.")
+
     logger.info(
         "Mew message from chat %s, user %s",
         update.message.chat_id,
@@ -92,6 +97,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
         logger.error(f"Error while calling the LLM: {e}")
         return
 
+    if response is None:
+        logger.info("There is no response.")
+        raise Exception("No response is sent.")
+
     response = response.removeprefix(f"{BOT_NAME} (0): ")
     if response != no_reply_token:
         cur.execute(
@@ -109,6 +118,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
 
 async def photo_handler(update: Update, context: CallbackContext) -> None:
     try:
+        if update.message is None:
+            logger.info(f"This update is missing the message.")
+            raise Exception("update doesn't have message.")
+
         file_id = update.message.photo[-1].file_id
         file_info = await context.bot.get_file(file_id)
         file_path = file_info.file_path
@@ -117,7 +130,7 @@ async def photo_handler(update: Update, context: CallbackContext) -> None:
 
         loop = asyncio.get_running_loop()
 
-        def runs_in_background_thread():
+        def runs_in_background_thread() -> None:
             try:
                 with urllib.request.urlopen(file_path) as response:
                     if response.status == 200:
@@ -129,13 +142,20 @@ async def photo_handler(update: Update, context: CallbackContext) -> None:
             except Exception as e:
                 logger.error(f"Unexpected error while downloading the file: {e}")
 
-        # Run the blocking function in a separate thread
-        await loop.run_in_executor(None, runs_in_background_thread)
+        try:
+            await loop.run_in_executor(None, runs_in_background_thread)
+        except Exception as e:
+            logger.error(f"Download failed: {e}")
+            return
 
         response = await analyze_photo(update, file_name)
 
         if os.path.exists(file_name):
             os.remove(file_name)
+
+        if response is None:
+            logger.info("There is no response.")
+            raise Exception("No response is sent.")
 
         await update.message.reply_text(response)
 
