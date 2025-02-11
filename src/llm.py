@@ -4,6 +4,9 @@ import json
 import os
 import openai
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
+from telegram import Update
+
 from evaluate import evaluate
 from logger import logger
 
@@ -15,10 +18,10 @@ OPENAI_MODEL = "gpt-4-turbo"
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-async def ask_ai(messages: list) -> str:
+async def ask_ai(messages: list) -> str | None:
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
-    def runs_in_background_thread():
+    def runs_in_background_thread() -> ChatCompletion:
         try:
             # noinspection PyShadowingNames
             completion = client.chat.completions.create(
@@ -66,16 +69,21 @@ async def ask_ai(messages: list) -> str:
     return message.content
 
 
-async def analyze_photo(update, image_path):
+async def analyze_photo(update: Update, image_path: str) -> str | None:
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
-    await update.message.reply_text("Analyzing your photo...")
+    if update.message:
+        await update.message.reply_text("Analyzing your photo...")
+    else:
+        logger.info(f"This update doesn't have any message.")
+        raise Exception("No photo sent.")
+
     logger.info(f"Analyzing the photo")
 
     loop = asyncio.get_running_loop()
 
-    def runs_in_background_thread():
+    def runs_in_background_thread() -> ChatCompletion:
         try:
             # noinspection PyShadowingNames
             completion = client.chat.completions.create(
