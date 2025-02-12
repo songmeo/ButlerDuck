@@ -29,9 +29,12 @@ SYSTEM_PROMPT = f"""
 
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect) -> None:
     _ = context
-    if update.message is None or update.message.from_user is None:
-        logger.info(f"This update is missing the message or the sender.")
-        raise Exception("update doesn't have message or from_user.")
+    if update.message is None:
+        return
+
+    if update.message.from_user is None:
+        logger.warn("Warning: Message has no sender. Skipping...")
+        return
 
     logger.info(
         "Mew message from chat %s, user %s",
@@ -97,10 +100,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
         logger.error(f"Error while calling the LLM: {e}")
         return
 
-    if response is None:
-        logger.info("There is no response.")
-        raise Exception("No response is sent.")
-
     response = response.removeprefix(f"{BOT_NAME} (0): ")
     if response != no_reply_token:
         cur.execute(
@@ -119,8 +118,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
 async def photo_handler(update: Update, context: CallbackContext) -> None:
     try:
         if update.message is None:
-            logger.info(f"This update is missing the message.")
-            raise Exception("update doesn't have message.")
+            logger.warn("Warning: No image to analyze. Skipping...")
+            return
 
         file_id = update.message.photo[-1].file_id
         file_info = await context.bot.get_file(file_id)
@@ -152,10 +151,6 @@ async def photo_handler(update: Update, context: CallbackContext) -> None:
 
         if os.path.exists(file_name):
             os.remove(file_name)
-
-        if response is None:
-            logger.info("There is no response.")
-            raise Exception("No response is sent.")
 
         await update.message.reply_text(response)
 
