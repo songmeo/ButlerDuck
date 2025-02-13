@@ -4,6 +4,9 @@ import json
 import os
 import openai
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
+from telegram import Update
+
 from evaluate import evaluate
 from logger import logger
 
@@ -18,7 +21,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 async def ask_ai(messages: list) -> str:
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
-    def runs_in_background_thread():
+    def runs_in_background_thread() -> ChatCompletion:
         try:
             # noinspection PyShadowingNames
             completion = client.chat.completions.create(
@@ -27,10 +30,10 @@ async def ask_ai(messages: list) -> str:
                 tools=json.load(open("tools.json")),
             )
         except openai.BadRequestError as e:
-            logger.info(f"OpenAI API error: {e}")
+            logger.error(f"OpenAI API error: {e}")
             raise ValueError("Missing corresponding tool_call responses for tool_call_ids.") from e
         except Exception as e:
-            logger.info(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error: {e}")
             raise Exception("An unexpected error occurred while processing the tool call.") from e
         return completion
 
@@ -63,19 +66,27 @@ async def ask_ai(messages: list) -> str:
 
     logger.info("bot replied: %s", completion.choices)
 
+    if message.content is None:
+        raise ValueError("Unexpected None content from OpenAI response.")
+
     return message.content
 
 
-async def analyze_photo(update, image_path):
+async def analyze_photo(update: Update, image_path: str) -> str:
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
-    await update.message.reply_text("Analyzing your photo...")
+    if update.message:
+        await update.message.reply_text("Analyzing your photo...")
+    else:
+        logger.error(f"This update doesn't have any message.")
+        raise Exception("No photo sent.")
+
     logger.info(f"Analyzing the photo")
 
     loop = asyncio.get_running_loop()
 
-    def runs_in_background_thread():
+    def runs_in_background_thread() -> ChatCompletion:
         try:
             # noinspection PyShadowingNames
             completion = client.chat.completions.create(
@@ -94,11 +105,14 @@ async def analyze_photo(update, image_path):
             )
             logger.info("bot replied: %s", completion.choices)
         except Exception as e:
-            logger.info(f"Unexpected error: {e}")
+            logger.error(f"Unexpected error: {e}")
             raise Exception("An unexpected error occurred while analyzing photo.")
         return completion
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
     message = completion.choices[0].message
+
+    if message.content is None:
+        raise ValueError("Unexpected None content from OpenAI response.")
 
     return message.content
