@@ -33,7 +33,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
         return
 
     if update.message.from_user is None:
-        logger.warn("Warning: Message has no sender. Skipping...")
+        logger.warning("Message has no sender. Skipping...")
         return
 
     logger.info(
@@ -118,7 +118,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
 async def photo_handler(update: Update, context: CallbackContext) -> None:
     try:
         if update.message is None:
-            logger.warn("Warning: No image to analyze. Skipping...")
+            logger.warning("No image to analyze. Skipping...")
             return
 
         file_id = update.message.photo[-1].file_id
