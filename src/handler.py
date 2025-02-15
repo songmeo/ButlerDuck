@@ -26,7 +26,15 @@ SYSTEM_PROMPT = f"""
     """
 
 
-async def store_message(update: Update, con: psycopg2.connect) -> None:
+async def store_message(update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect) -> None:
+    _ = context
+    if update.message is None:
+        return
+
+    if update.message.from_user is None:
+        logger.warning("Message has no sender. Skipping...")
+        return
+
     logger.info(
         "Mew message from chat %s, user %s",
         update.message.chat_id,
@@ -57,7 +65,10 @@ async def store_message(update: Update, con: psycopg2.connect) -> None:
     con.commit()
 
 
-async def generate_response(update: Update, con: psycopg2.connect):
+async def generate_response(update: Update, con: psycopg2.connect) -> None:
+    if update.message is None:
+        return
+
     cur = con.cursor()
     chat_id = update.message.chat_id
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -113,6 +124,10 @@ async def generate_response(update: Update, con: psycopg2.connect):
 
 async def photo_handler(update: Update, context: CallbackContext) -> None:
     try:
+        if update.message is None:
+            logger.warning("No image to analyze. Skipping...")
+            return
+
         file_id = update.message.photo[-1].file_id
         file_info = await context.bot.get_file(file_id)
         file_path = file_info.file_path
@@ -121,7 +136,7 @@ async def photo_handler(update: Update, context: CallbackContext) -> None:
 
         loop = asyncio.get_running_loop()
 
-        def runs_in_background_thread():
+        def runs_in_background_thread() -> None:
             try:
                 with urllib.request.urlopen(file_path) as response:
                     if response.status == 200:
@@ -133,8 +148,11 @@ async def photo_handler(update: Update, context: CallbackContext) -> None:
             except Exception as e:
                 logger.error(f"Unexpected error while downloading the file: {e}")
 
-        # Run the blocking function in a separate thread
-        await loop.run_in_executor(None, runs_in_background_thread)
+        try:
+            await loop.run_in_executor(None, runs_in_background_thread)
+        except Exception as e:
+            logger.error(f"Download failed: {e}")
+            return
 
         response = await analyze_photo(update, file_name)
 

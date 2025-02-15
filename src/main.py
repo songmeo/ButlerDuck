@@ -3,6 +3,7 @@
 
 import asyncio
 import time
+from typing import Any
 import psycopg2
 import os
 from dotenv import load_dotenv
@@ -13,6 +14,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
     CallbackContext,
+    ExtBot,
 )
 from handler import photo_handler, store_message, generate_response
 from logger import logger
@@ -79,12 +81,18 @@ def main() -> None:
     )
     con.commit()
 
-    async def sticker_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def sticker_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         _ = context
-        sticker = update.message.sticker
-        await update.message.reply_text(f"Nice sticker! It's {sticker.emoji} emoji.")
+        if update.message and update.message.sticker:
+            sticker = update.message.sticker
+            await update.message.reply_text(f"Nice sticker! It's {sticker.emoji} emoji.")
+        else:
+            logger.error(f"This update doesn't have any message or sticker.")
+            raise Exception("No photo sent.")
 
-    async def error_handler(update: Update, context: CallbackContext) -> None:
+    async def error_handler(
+        update: object, context: CallbackContext[ExtBot[None], dict[Any, Any], dict[Any, Any], dict[Any, Any]]
+    ) -> None:
         if isinstance(context.error, error.Conflict):
             logger.error("Conflict error detected: Another bot instance is likely running.")
             await asyncio.sleep(10)  # Wait before retrying
@@ -93,14 +101,15 @@ def main() -> None:
 
     delaying = asyncio.Lock()
 
-    async def delay_then_response(update, con):
+    async def delay_then_response(update: Update, context: CallbackContext) -> None:
+        _ = context
         async with delaying:
             await asyncio.sleep(3)  # Wait 3 seconds for new messages
             await generate_response(update, con)
 
-    async def text_handler_proxy(update, context):
+    async def text_handler_proxy(update: Update, context: CallbackContext) -> None:
         _ = context
-        await store_message(update, con)
+        await store_message(update, context, con)
 
         if not delaying.locked():
             _ = asyncio.create_task(delay_then_response(update, con))  # run the delay in background
