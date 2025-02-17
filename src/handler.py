@@ -26,8 +26,7 @@ SYSTEM_PROMPT = f"""
     """
 
 
-async def store_message(update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect) -> None:
-    _ = context
+async def store_message(update: Update, con: psycopg2.connect) -> None:
     if update.message is None:
         return
 

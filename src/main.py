@@ -3,6 +3,7 @@
 
 import asyncio
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import psycopg2
 import os
@@ -100,20 +101,38 @@ def main() -> None:
         else:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
-    delaying = asyncio.Lock()
+    async def text_handler(update: Update, con: psycopg2.connect) -> None:
+        chat_id = update.message.chat_id
+        cur.execute(
+            """
+            SELECT 
+                user_id, created_at 
+            FROM user_message 
+            WHERE 
+                chat_id = %s
+            ORDER BY 
+                created_at DESC 
+            LIMIT 1;
+            """,
+            (chat_id,),
+        )
 
-    async def delay_then_response(update: Update, context: CallbackContext) -> None:
-        _ = context
-        async with delaying:
-            await asyncio.sleep(3)  # Wait 3 seconds for new messages
-            await generate_response(update, con)
+        last_message = cur.fetchone()
+        if last_message is None:
+            await store_message(update, con)
+
+        user_id, created_at = last_message
+        await store_message(update, con)
+        if user_id != 0:  # the last message is not from the LLM
+            while True:
+                if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
+                    await generate_response(update, con)
+                    break
+                continue
 
     async def text_handler_proxy(update: Update, context: CallbackContext) -> None:
         _ = context
-        await store_message(update, context, con)
-
-        if not delaying.locked():
-            _ = asyncio.create_task(delay_then_response(update, con))  # run the delay in background
+        await text_handler(update, con)
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 
