@@ -75,6 +75,7 @@ def main() -> None:
             chat_id BIGINT NOT NULL,
             user_id BIGINT NOT NULL,
             message TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
             CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES tg_user(tg_id) ON DELETE CASCADE
         )
         """
