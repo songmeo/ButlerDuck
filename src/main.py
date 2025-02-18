@@ -124,7 +124,7 @@ def main() -> None:
                 user_id, created_at = last_message
                 if user_id != 0:  # the last message is not from the LLM
                     if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
-                        await generate_response(update, con)
+                        await generate_response(chat_id=chat_id, con=con)
 
     asyncio.create_task(generate_response_loop(con))
 

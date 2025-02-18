@@ -3,7 +3,8 @@ import uuid
 import urllib.request
 import psycopg2
 import os
-from telegram import Update
+
+from telegram import Update, Message
 from telegram.ext import (
     ContextTypes,
     CallbackContext,
@@ -64,12 +65,8 @@ async def store_message(update: Update, con: psycopg2.connect) -> None:
     con.commit()
 
 
-async def generate_response(update: Update, con: psycopg2.connect) -> None:
-    if update.message is None:
-        return
-
+async def generate_response(chat_id: int, con: psycopg2.connect) -> None:
     cur = con.cursor()
-    chat_id = update.message.chat_id
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     cur.execute(
         """
@@ -115,7 +112,7 @@ async def generate_response(update: Update, con: psycopg2.connect) -> None:
             """,
             (chat_id, response),
         )
-        await update.message.reply_text(response)
+        await Message.reply_to_message(chat_id=chat_id, text=response)
     else:
         logger.info("The bot has nothing to say.")
     con.commit()
