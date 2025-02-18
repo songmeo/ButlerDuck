@@ -101,34 +101,35 @@ def main() -> None:
         else:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
+    async def generate_response_loop(con: psycopg2.connect):
+        cur.execute("SELECT chat_id FROM user_message")
+        chat_ids = cur.fetchall()
+        chat_ids = [row[0] for row in chat_ids]
+        for chat_id in chat_ids:
+            cur.execute(
+                """
+                SELECT 
+                    user_id, created_at 
+                FROM user_message 
+                WHERE 
+                    chat_id = %s
+                ORDER BY 
+                    created_at DESC 
+                LIMIT 1;
+                """,
+                (chat_id,),
+            )
+            last_message = cur.fetchone()
+            if last_message:
+                user_id, created_at = last_message
+                if user_id != 0:  # the last message is not from the LLM
+                    if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
+                        await generate_response(update, con)
+
+    asyncio.create_task(generate_response_loop(con))
+
     async def text_handler(update: Update, con: psycopg2.connect) -> None:
-        chat_id = update.message.chat_id
-        cur.execute(
-            """
-            SELECT 
-                user_id, created_at 
-            FROM user_message 
-            WHERE 
-                chat_id = %s
-            ORDER BY 
-                created_at DESC 
-            LIMIT 1;
-            """,
-            (chat_id,),
-        )
-
-        last_message = cur.fetchone()
-        if last_message is None:
-            await store_message(update, con)
-
-        user_id, created_at = last_message
         await store_message(update, con)
-        if user_id != 0:  # the last message is not from the LLM
-            while True:
-                if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
-                    await generate_response(update, con)
-                    break
-                continue
 
     async def text_handler_proxy(update: Update, context: CallbackContext) -> None:
         _ = context
