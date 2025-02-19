@@ -12,7 +12,8 @@ from llm import ask_ai, analyze_photo
 from logger import logger
 
 BOT_NAME = "ButlerBot"
-BOT_ID = 0
+BOT_USER_ID = 0
+BOT_MESSAGE_ID = 0
 no_reply_token = "-"
 SYSTEM_PROMPT = f"""
     Each message in the conversation below is prefixed with the username and their unique 
@@ -94,9 +95,9 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
-    response = await ask_ai(messages)
     logger.info("all messages: %s", messages)
-    response = response.removeprefix(f"{BOT_NAME} ({BOT_ID}): ")
+    response = await ask_ai(messages)
+    response = response.removeprefix(f"{BOT_NAME} ({BOT_USER_ID}): ")
     cur.execute(
         """
         INSERT INTO user_message (chat_id, user_id, message)
