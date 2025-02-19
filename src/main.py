@@ -17,8 +17,9 @@ from telegram.ext import (
     filters,
     CallbackContext,
     ExtBot,
+    CommandHandler,
 )
-from handler import photo_handler, store_message, generate_response
+from handler import photo_handler, store_message, generate_response, help_command
 from logger import logger
 
 load_dotenv()
@@ -150,6 +151,8 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 
     application.add_error_handler(error_handler)
+
+    application.add_handler(CommandHandler("help", help_command))
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

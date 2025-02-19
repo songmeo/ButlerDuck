@@ -108,6 +108,24 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
     return response
 
 
+async def help_command(update: Update, context: CallbackContext) -> None:
+    _ = context
+
+    if update.message is None:
+        return
+
+    help_text = (
+        "🤖 *ButlerBot System Prompt:*\n"
+        f"_{SYSTEM_PROMPT}_\n\n"
+        "📌 *Available Commands:*\n"
+        "/help - Show this help message\n"
+        "/todo - Manage your to-do list (upcoming) \n"
+        "/remind - Set reminders (upcoming) \n"
+        "\n"
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
+
+
 async def photo_handler(update: Update, context: CallbackContext) -> None:
     try:
         if update.message is None:
