@@ -8,6 +8,7 @@ from typing import Any
 import psycopg2
 import os
 from dotenv import load_dotenv
+import telegram
 from telegram import Update, error
 from telegram.ext import (
     Application,
@@ -28,6 +29,7 @@ DB_NAME = os.environ["DB_NAME"]
 DB_HOST = os.environ["DB_HOST"]
 TOKEN = os.environ["TOKEN"]
 BOT_NAME = "ButlerBot"
+BOT_ID = 0
 
 
 async def generate_response_loop(con: psycopg2.connect) -> None:
@@ -53,9 +55,12 @@ async def generate_response_loop(con: psycopg2.connect) -> None:
             last_message = cur.fetchone()
             if last_message:
                 user_id, message_id, created_at = last_message
-                if user_id != 0:  # the last message is not from the LLM
+                if user_id != BOT_ID:
                     if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
-                        await generate_response(token=TOKEN, chat_id=chat_id, message_id=message_id, con=con)
+                        response = await generate_response(chat_id=chat_id, con=con)
+                        bot = telegram.Bot(token=TOKEN)
+                        await bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
+
         await asyncio.sleep(1)
 
 
@@ -106,7 +111,7 @@ def main() -> None:
             user_id BIGINT NOT NULL,
             message_id BIGINT NOT NULL,
             message TEXT NOT NULL,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES tg_user(tg_id) ON DELETE CASCADE
         )
         """
@@ -131,12 +136,9 @@ def main() -> None:
         else:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
-    async def text_handler(update: Update, con: psycopg2.connect) -> None:
-        await store_message(update, con)
-
     async def text_handler_proxy(update: Update, context: CallbackContext) -> None:
         _ = context
-        await text_handler(update, con)
+        await store_message(update, con)
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 

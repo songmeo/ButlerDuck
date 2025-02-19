@@ -4,8 +4,7 @@ import urllib.request
 import psycopg2
 import os
 
-import telegram
-from telegram import Update, Message
+from telegram import Update
 from telegram.ext import (
     CallbackContext,
 )
@@ -13,6 +12,7 @@ from llm import ask_ai, analyze_photo
 from logger import logger
 
 BOT_NAME = "ButlerBot"
+BOT_ID = 0
 no_reply_token = "-"
 SYSTEM_PROMPT = f"""
     Each message in the conversation below is prefixed with the username and their unique 
@@ -66,9 +66,8 @@ async def store_message(update: Update, con: psycopg2.connect) -> None:
     con.commit()
 
 
-async def generate_response(token: str, chat_id: int, message_id: int, con: psycopg2.connect) -> None:
+async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
     cur = con.cursor()
-    bot = telegram.Bot(token=token)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     cur.execute(
         """
@@ -98,26 +97,18 @@ async def generate_response(token: str, chat_id: int, message_id: int, con: psyc
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
-    try:
-        response = await ask_ai(messages)
-        logger.info("all messages: %s", messages)
-    except Exception as e:
-        logger.error(f"Error while calling the LLM: {e}")
-        return
-
-    response = response.removeprefix(f"{BOT_NAME} (0): ")
-    if response != no_reply_token:
-        cur.execute(
-            """
-            INSERT INTO user_message (chat_id, user_id, message)
-            VALUES (%s, 0, %s)
-            """,
-            (chat_id, response),
-        )
-        await bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
-    else:
-        logger.info("The bot has nothing to say.")
+    response = await ask_ai(messages)
+    logger.info("all messages: %s", messages)
+    response = response.removeprefix(f"{BOT_NAME} ({BOT_ID}): ")
+    cur.execute(
+        """
+        INSERT INTO user_message (chat_id, user_id, message)
+        VALUES (%s, 0, %s)
+        """,
+        (chat_id, response),
+    )
     con.commit()
+    return response
 
 
 async def photo_handler(update: Update, context: CallbackContext) -> None:
