@@ -115,8 +115,10 @@ async def help_command(update: Update, context: CallbackContext) -> None:
         return
 
     help_text = (
-        "🤖 *ButlerBot System Prompt:*\n"
-        f"_{SYSTEM_PROMPT}_\n\n"
+        "🤖 *ButlerBot Behavior:*\n"
+        f"ButlerBot observes conversations but does not normally interfere.\n"
+        f"It only responds when explicitly called by name (e.g., 'bot', '{BOT_NAME}').\n"
+        f"If the bot has nothing to say, it will respond with: `{no_reply_token}`.\n\n"
         "📌 *Available Commands:*\n"
         "/help - Show this help message\n"
         "/todo - Manage your to-do list (upcoming) \n"
