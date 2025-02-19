@@ -20,6 +20,7 @@ from telegram.ext import (
     CommandHandler,
 )
 from handler import photo_handler, store_message, generate_response, help_command
+from handler import BOT_NAME, BOT_USER_ID
 from logger import logger
 
 load_dotenv()
@@ -29,8 +30,6 @@ DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 DB_HOST = os.environ["DB_HOST"]
 TOKEN = os.environ["TOKEN"]
-BOT_NAME = "ButlerBot"
-BOT_ID = 0
 
 
 async def generate_response_loop(con: psycopg2.connect) -> None:
@@ -56,7 +55,7 @@ async def generate_response_loop(con: psycopg2.connect) -> None:
             last_message = cur.fetchone()
             if last_message:
                 user_id, message_id, created_at = last_message
-                if user_id != BOT_ID:
+                if user_id != BOT_USER_ID:
                     if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
                         response = await generate_response(chat_id=chat_id, con=con)
                         bot = telegram.Bot(token=TOKEN)
