@@ -3,10 +3,12 @@
 
 import asyncio
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import psycopg2
 import os
 from dotenv import load_dotenv
+import telegram
 from telegram import Update, error
 from telegram.ext import (
     Application,
@@ -16,7 +18,8 @@ from telegram.ext import (
     CallbackContext,
     ExtBot,
 )
-from handler import text_handler, photo_handler
+from handler import photo_handler, store_message, generate_response
+from handler import BOT_NAME, BOT_USER_ID
 from logger import logger
 
 load_dotenv()
@@ -26,7 +29,38 @@ DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 DB_HOST = os.environ["DB_HOST"]
 TOKEN = os.environ["TOKEN"]
-BOT_NAME = "ButlerBot"
+
+
+async def generate_response_loop(con: psycopg2.connect) -> None:
+    while True:
+        cur = con.cursor()
+        cur.execute("SELECT chat_id FROM user_message")
+        chat_ids = cur.fetchall()
+        chat_ids = [row[0] for row in chat_ids]
+        for chat_id in chat_ids:
+            cur.execute(
+                """
+                SELECT 
+                    user_id, message_id, created_at 
+                FROM user_message 
+                WHERE 
+                    chat_id = %s
+                ORDER BY 
+                    created_at DESC 
+                LIMIT 1;
+                """,
+                (chat_id,),
+            )
+            last_message = cur.fetchone()
+            if last_message:
+                user_id, message_id, created_at = last_message
+                if user_id != BOT_USER_ID:
+                    if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
+                        response = await generate_response(chat_id=chat_id, con=con)
+                        bot = telegram.Bot(token=TOKEN)
+                        await bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
+
+        await asyncio.sleep(1)
 
 
 def main() -> None:
@@ -74,7 +108,9 @@ def main() -> None:
             id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
             chat_id BIGINT NOT NULL,
             user_id BIGINT NOT NULL,
+            message_id BIGINT NOT NULL,
             message TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES tg_user(tg_id) ON DELETE CASCADE
         )
         """
@@ -100,7 +136,11 @@ def main() -> None:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
     async def text_handler_proxy(update: Update, context: CallbackContext) -> None:
-        await text_handler(update, context, con)
+        _ = context
+        if update.message is None:
+            return
+
+        await store_message(update.message, con)
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 
@@ -109,6 +149,10 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 
     application.add_error_handler(error_handler)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.create_task(generate_response_loop(con))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)

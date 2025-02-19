@@ -4,15 +4,16 @@ import urllib.request
 import psycopg2
 import os
 
-from telegram import Update
+from telegram import Update, Message
 from telegram.ext import (
-    ContextTypes,
     CallbackContext,
 )
 from llm import ask_ai, analyze_photo
 from logger import logger
 
 BOT_NAME = "ButlerBot"
+BOT_USER_ID = 0
+BOT_MESSAGE_ID = 0
 no_reply_token = "-"
 SYSTEM_PROMPT = f"""
     Each message in the conversation below is prefixed with the username and their unique 
@@ -27,26 +28,23 @@ SYSTEM_PROMPT = f"""
     """
 
 
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect) -> None:
-    _ = context
-    if update.message is None:
-        return
-
-    if update.message.from_user is None:
+async def store_message(message: Message, con: psycopg2.connect) -> None:
+    if message.from_user is None:
         logger.warning("Message has no sender. Skipping...")
         return
 
     logger.info(
         "Mew message from chat %s, user %s",
-        update.message.chat_id,
-        update.message.from_user.id,
+        message.chat_id,
+        message.from_user.id,
     )
-    text = update.message.text
+    text = message.text
     cur = con.cursor()
-    chat_id, user_id, username = (
-        update.message.chat_id,
-        update.message.from_user.id,
-        update.message.from_user.username,
+    chat_id, user_id, message_id, username = (
+        message.chat_id,
+        message.from_user.id,
+        message.message_id,
+        message.from_user.username,
     )
     cur.execute(
         """
@@ -58,12 +56,16 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
     )
     cur.execute(
         """
-        INSERT INTO user_message (chat_id, user_id, message)
-        VALUES (%s, %s, %s)
+        INSERT INTO user_message (chat_id, user_id, message_id, message)
+        VALUES (%s, %s, %s, %s)
         """,
-        (chat_id, user_id, text),
+        (chat_id, user_id, message_id, text),
     )
     con.commit()
+
+
+async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
+    cur = con.cursor()
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     cur.execute(
         """
@@ -93,26 +95,18 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
-    try:
-        response = await ask_ai(messages)
-        logger.info("all messages: %s", messages)
-    except Exception as e:
-        logger.error(f"Error while calling the LLM: {e}")
-        return
-
-    response = response.removeprefix(f"{BOT_NAME} (0): ")
-    if response != no_reply_token:
-        cur.execute(
-            """
-            INSERT INTO user_message (chat_id, user_id, message)
-            VALUES (%s, 0, %s)
-            """,
-            (chat_id, response),
-        )
-        await update.message.reply_text(response)
-    else:
-        logger.info("The bot has nothing to say.")
+    logger.info("all messages: %s", messages)
+    response = await ask_ai(messages)
+    response = response.removeprefix(f"{BOT_NAME} ({BOT_USER_ID}): ")
+    cur.execute(
+        """
+        INSERT INTO user_message (chat_id, user_id, message)
+        VALUES (%s, 0, %s)
+        """,
+        (chat_id, response),
+    )
     con.commit()
+    return response
 
 
 async def photo_handler(update: Update, context: CallbackContext) -> None:
