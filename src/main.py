@@ -30,6 +30,35 @@ TOKEN = os.environ["TOKEN"]
 BOT_NAME = "ButlerBot"
 
 
+async def generate_response_loop(con: psycopg2.connect) -> None:
+    while True:
+        cur = con.cursor()
+        cur.execute("SELECT chat_id FROM user_message")
+        chat_ids = cur.fetchall()
+        chat_ids = [row[0] for row in chat_ids]
+        for chat_id in chat_ids:
+            cur.execute(
+                """
+                SELECT 
+                    user_id, message_id, created_at 
+                FROM user_message 
+                WHERE 
+                    chat_id = %s
+                ORDER BY 
+                    created_at DESC 
+                LIMIT 1;
+                """,
+                (chat_id,),
+            )
+            last_message = cur.fetchone()
+            if last_message:
+                user_id, message_id, created_at = last_message
+                if user_id != 0:  # the last message is not from the LLM
+                    if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
+                        await generate_response(token=TOKEN, chat_id=chat_id, message_id=message_id, con=con)
+        await asyncio.sleep(1)
+
+
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
 
@@ -75,6 +104,7 @@ def main() -> None:
             id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
             chat_id BIGINT NOT NULL,
             user_id BIGINT NOT NULL,
+            message_id BIGINT NOT NULL,
             message TEXT NOT NULL,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES tg_user(tg_id) ON DELETE CASCADE
@@ -101,33 +131,6 @@ def main() -> None:
         else:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
-    async def generate_response_loop(con: psycopg2.connect):
-        cur.execute("SELECT chat_id FROM user_message")
-        chat_ids = cur.fetchall()
-        chat_ids = [row[0] for row in chat_ids]
-        for chat_id in chat_ids:
-            cur.execute(
-                """
-                SELECT 
-                    user_id, created_at 
-                FROM user_message 
-                WHERE 
-                    chat_id = %s
-                ORDER BY 
-                    created_at DESC 
-                LIMIT 1;
-                """,
-                (chat_id,),
-            )
-            last_message = cur.fetchone()
-            if last_message:
-                user_id, created_at = last_message
-                if user_id != 0:  # the last message is not from the LLM
-                    if (datetime.now(timezone.utc) - created_at) >= timedelta(seconds=5):
-                        await generate_response(chat_id=chat_id, con=con)
-
-    asyncio.create_task(generate_response_loop(con))
-
     async def text_handler(update: Update, con: psycopg2.connect) -> None:
         await store_message(update, con)
 
@@ -142,6 +145,10 @@ def main() -> None:
     application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 
     application.add_error_handler(error_handler)
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.create_task(generate_response_loop(con))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)

@@ -4,9 +4,9 @@ import urllib.request
 import psycopg2
 import os
 
+import telegram
 from telegram import Update, Message
 from telegram.ext import (
-    ContextTypes,
     CallbackContext,
 )
 from llm import ask_ai, analyze_photo
@@ -42,9 +42,10 @@ async def store_message(update: Update, con: psycopg2.connect) -> None:
     )
     text = update.message.text
     cur = con.cursor()
-    chat_id, user_id, username = (
+    chat_id, user_id, message_id, username = (
         update.message.chat_id,
         update.message.from_user.id,
+        update.message.message_id,
         update.message.from_user.username,
     )
     cur.execute(
@@ -57,16 +58,17 @@ async def store_message(update: Update, con: psycopg2.connect) -> None:
     )
     cur.execute(
         """
-        INSERT INTO user_message (chat_id, user_id, message)
-        VALUES (%s, %s, %s)
+        INSERT INTO user_message (chat_id, user_id, message_id, message)
+        VALUES (%s, %s, %s, %s)
         """,
-        (chat_id, user_id, text),
+        (chat_id, user_id, message_id, text),
     )
     con.commit()
 
 
-async def generate_response(chat_id: int, con: psycopg2.connect) -> None:
+async def generate_response(token: str, chat_id: int, message_id: int, con: psycopg2.connect) -> None:
     cur = con.cursor()
+    bot = telegram.Bot(token=token)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     cur.execute(
         """
@@ -112,7 +114,7 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> None:
             """,
             (chat_id, response),
         )
-        await Message.reply_to_message(chat_id=chat_id, text=response)
+        await bot.send_message(chat_id=chat_id, text=response, reply_to_message_id=message_id)
     else:
         logger.info("The bot has nothing to say.")
     con.commit()
