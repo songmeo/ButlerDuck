@@ -4,7 +4,7 @@ import urllib.request
 import psycopg2
 import os
 
-from telegram import Update
+from telegram import Update, Message
 from telegram.ext import (
     CallbackContext,
 )
@@ -27,26 +27,23 @@ SYSTEM_PROMPT = f"""
     """
 
 
-async def store_message(update: Update, con: psycopg2.connect) -> None:
-    if update.message is None:
-        return
-
-    if update.message.from_user is None:
+async def store_message(message: Message, con: psycopg2.connect) -> None:
+    if message.from_user is None:
         logger.warning("Message has no sender. Skipping...")
         return
 
     logger.info(
         "Mew message from chat %s, user %s",
-        update.message.chat_id,
-        update.message.from_user.id,
+        message.chat_id,
+        message.from_user.id,
     )
-    text = update.message.text
+    text = message.text
     cur = con.cursor()
     chat_id, user_id, message_id, username = (
-        update.message.chat_id,
-        update.message.from_user.id,
-        update.message.message_id,
-        update.message.from_user.username,
+        message.chat_id,
+        message.from_user.id,
+        message.message_id,
+        message.from_user.username,
     )
     cur.execute(
         """

@@ -138,7 +138,10 @@ def main() -> None:
 
     async def text_handler_proxy(update: Update, context: CallbackContext) -> None:
         _ = context
-        await store_message(update, con)
+        if update.message is None:
+            return
+
+        await store_message(update.message, con)
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 
