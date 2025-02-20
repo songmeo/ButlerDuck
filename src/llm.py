@@ -13,12 +13,12 @@ from logger import logger
 # todo: make this a class
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-OPENAI_MODEL = "gpt-4-turbo"
+OPENAI_MODEL = "gpt-4o"
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-async def ask_ai(messages: list) -> str | None:
+async def ask_ai(messages: list) -> str:
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
     def runs_in_background_thread() -> ChatCompletion:
@@ -66,10 +66,13 @@ async def ask_ai(messages: list) -> str | None:
 
     logger.info("bot replied: %s", completion.choices)
 
+    if message.content is None:
+        raise ValueError("Unexpected None content from OpenAI response.")
+
     return message.content
 
 
-async def analyze_photo(update: Update, image_path: str) -> str | None:
+async def analyze_photo(update: Update, image_path: str) -> str:
     with open(image_path, "rb") as image_file:
         base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
@@ -108,5 +111,8 @@ async def analyze_photo(update: Update, image_path: str) -> str | None:
 
     completion = await loop.run_in_executor(None, runs_in_background_thread)
     message = completion.choices[0].message
+
+    if message.content is None:
+        raise ValueError("Unexpected None content from OpenAI response.")
 
     return message.content

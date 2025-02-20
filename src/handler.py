@@ -4,15 +4,16 @@ import urllib.request
 import psycopg2
 import os
 
-from telegram import Update
+from telegram import Update, Message
 from telegram.ext import (
-    ContextTypes,
     CallbackContext,
 )
 from llm import ask_ai, analyze_photo
 from logger import logger
 
 BOT_NAME = "ButlerBot"
+BOT_USER_ID = 0
+BOT_MESSAGE_ID = 0
 no_reply_token = "-"
 SYSTEM_PROMPT = f"""
     Each message in the conversation below is prefixed with the username and their unique 
@@ -27,23 +28,23 @@ SYSTEM_PROMPT = f"""
     """
 
 
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: psycopg2.connect) -> None:
-    _ = context
-    if update.message is None or update.message.from_user is None:
-        logger.info(f"This update is missing the message or the sender.")
-        raise Exception("update doesn't have message or from_user.")
+async def store_message(message: Message, con: psycopg2.connect) -> None:
+    if message.from_user is None:
+        logger.warning("Message has no sender. Skipping...")
+        return
 
     logger.info(
         "Mew message from chat %s, user %s",
-        update.message.chat_id,
-        update.message.from_user.id,
+        message.chat_id,
+        message.from_user.id,
     )
-    text = update.message.text
+    text = message.text
     cur = con.cursor()
-    chat_id, user_id, username = (
-        update.message.chat_id,
-        update.message.from_user.id,
-        update.message.from_user.username,
+    chat_id, user_id, message_id, username = (
+        message.chat_id,
+        message.from_user.id,
+        message.message_id,
+        message.from_user.username,
     )
     cur.execute(
         """
@@ -55,12 +56,16 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
     )
     cur.execute(
         """
-        INSERT INTO user_message (chat_id, user_id, message)
-        VALUES (%s, %s, %s)
+        INSERT INTO user_message (chat_id, user_id, message_id, message)
+        VALUES (%s, %s, %s, %s)
         """,
-        (chat_id, user_id, text),
+        (chat_id, user_id, message_id, text),
     )
     con.commit()
+
+
+async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
+    cur = con.cursor()
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     cur.execute(
         """
@@ -90,37 +95,45 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE, con: 
                 "content": f"{user_name} ({user_id}): {message}",
             }
         )
-    try:
-        response = await ask_ai(messages)
-        logger.info("all messages: %s", messages)
-    except Exception as e:
-        logger.error(f"Error while calling the LLM: {e}")
+    logger.info("all messages: %s", messages)
+    response = await ask_ai(messages)
+    response = response.removeprefix(f"{BOT_NAME} ({BOT_USER_ID}): ")
+    cur.execute(
+        """
+        INSERT INTO user_message (chat_id, user_id, message)
+        VALUES (%s, 0, %s)
+        """,
+        (chat_id, response),
+    )
+    con.commit()
+    return response
+
+
+async def help_command(update: Update, context: CallbackContext) -> None:
+    _ = context
+
+    if update.message is None:
         return
 
-    if response is None:
-        logger.info("There is no response.")
-        raise Exception("No response is sent.")
-
-    response = response.removeprefix(f"{BOT_NAME} (0): ")
-    if response != no_reply_token:
-        cur.execute(
-            """
-            INSERT INTO user_message (chat_id, user_id, message)
-            VALUES (%s, 0, %s)
-            """,
-            (chat_id, response),
-        )
-        await update.message.reply_text(response)
-    else:
-        logger.info("The bot has nothing to say.")
-    con.commit()
+    help_text = (
+        "🤖 *ButlerBot Behavior:*\n"
+        f"ButlerBot observes conversations but does not normally interfere.\n"
+        f"It only responds when explicitly called by name (e.g., 'bot', '{BOT_NAME}').\n"
+        f"If the bot has nothing to say, it will respond with: `{no_reply_token}`.\n\n"
+        "📌 *Available Commands:*\n"
+        "/help - Show this help message\n"
+        "/todo - Manage your to-do list (upcoming) \n"
+        "/remind - Set reminders (upcoming) \n"
+        "\n"
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
 async def photo_handler(update: Update, context: CallbackContext) -> None:
     try:
         if update.message is None:
-            logger.info(f"This update is missing the message.")
-            raise Exception("update doesn't have message.")
+            logger.warning("No image to analyze. Skipping...")
+            return
 
         file_id = update.message.photo[-1].file_id
         file_info = await context.bot.get_file(file_id)
@@ -152,10 +165,6 @@ async def photo_handler(update: Update, context: CallbackContext) -> None:
 
         if os.path.exists(file_name):
             os.remove(file_name)
-
-        if response is None:
-            logger.info("There is no response.")
-            raise Exception("No response is sent.")
 
         await update.message.reply_text(response)
 
