@@ -105,14 +105,24 @@ def main() -> None:
     )
     cur.execute(
         """
+        CREATE TABLE IF NOT EXISTS user_image (
+            id SERIAL PRIMARY KEY,
+            image_path TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
         CREATE TABLE IF NOT EXISTS user_message (
             id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
             chat_id BIGINT NOT NULL,
             user_id BIGINT NOT NULL,
             message_id BIGINT NOT NULL,
             message TEXT NOT NULL,
+            user_image_id BIGINT NULL,            
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES tg_user(tg_id) ON DELETE CASCADE
+            CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES tg_user(tg_id) ON DELETE CASCADE,
+            CONSTRAINT fk_user_image FOREIGN KEY (user_image_id) REFERENCES user_image(id) ON DELETE SET NULL
         )
         """
     )
