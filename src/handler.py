@@ -1,9 +1,8 @@
-import asyncio
-import uuid
-import urllib.request
-import psycopg2
 import os
+import uuid
+from pathlib import Path
 
+import psycopg2
 from telegram import Update, Message
 from telegram.ext import (
     CallbackContext,
@@ -26,6 +25,8 @@ SYSTEM_PROMPT = f"""
     If you are not explicitly addressed, always respond with {no_reply_token}.
     When answering, don't use LaTeX.
     """
+DB_BLOB_DIR = Path(os.environ["DB_BLOB_DIR"])
+DB_BLOB_DIR.mkdir(parents=True, exist_ok=True)
 
 
 async def store_message(message: Message, con: psycopg2.connect) -> None:
@@ -129,42 +130,32 @@ async def help_command(update: Update, context: CallbackContext) -> None:
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
-async def photo_handler(update: Update, context: CallbackContext) -> None:
+def _make_unique_blob_path_relative(object_kind: str) -> Path:
+    uu = uuid.uuid4()
+    return Path(object_kind) / uu.hex[:5] / str(uu)
+
+
+async def photo_handler(update: Update, context: CallbackContext, con: psycopg2.connect) -> None:
     try:
         if update.message is None:
             logger.warning("No image to analyze. Skipping...")
             return
 
-        file_id = update.message.photo[-1].file_id
-        file_info = await context.bot.get_file(file_id)
-        file_path = file_info.file_path
+        tg_file_id = update.message.photo[-1].file_id
+        tg_file_info = await context.bot.get_file(tg_file_id)
+        local_file_path = _make_unique_blob_path_relative("image")
+        local_full_path = DB_BLOB_DIR / local_file_path
+        local_full_path.parent.mkdir(parents=True, exist_ok=True)
 
-        file_name = f"{uuid.uuid4()}.jpg"
+        await tg_file_info.download_to_drive(str(local_full_path))
 
-        loop = asyncio.get_running_loop()
+        logger.info(f"Photo saved as {local_full_path}")
 
-        def runs_in_background_thread() -> None:
-            try:
-                with urllib.request.urlopen(file_path) as response:
-                    if response.status == 200:
-                        with open(file_name, "wb") as f:
-                            f.write(response.read())
-                        logger.info(f"File downloaded successfully: {file_name}")
-                    else:
-                        logger.error(f"Failed to download the file. Status code: {response.status}")
-            except Exception as e:
-                logger.error(f"Unexpected error while downloading the file: {e}")
+        cur = con.cursor()
+        cur.execute("INSERT INTO user_image (image_path) VALUES (%s)", (str(local_full_path),))
+        con.commit()
 
-        try:
-            await loop.run_in_executor(None, runs_in_background_thread)
-        except Exception as e:
-            logger.error(f"Download failed: {e}")
-            return
-
-        response = await analyze_photo(update, file_name)
-
-        if os.path.exists(file_name):
-            os.remove(file_name)
+        response = await analyze_photo(update, str(local_full_path))
 
         await update.message.reply_text(response)
 

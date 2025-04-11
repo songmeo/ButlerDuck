@@ -146,6 +146,13 @@ def main() -> None:
         else:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
+    async def photo_handler_proxy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        _ = context
+        if update.message is None:
+            return
+
+        await photo_handler(update, context, con)
+
     async def text_handler_proxy(update: Update, context: CallbackContext) -> None:
         _ = context
         if update.message is None:
@@ -155,7 +162,7 @@ def main() -> None:
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler_proxy))
 
-    application.add_handler(MessageHandler(filters.PHOTO, photo_handler))
+    application.add_handler(MessageHandler(filters.PHOTO, photo_handler_proxy))
 
     application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 
