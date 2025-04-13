@@ -1,10 +1,10 @@
 import base64
 import os
 import uuid
+from typing import Any
 from pathlib import Path
-
 import psycopg2
-from telegram import Update, Message
+from telegram import Update, Message, PhotoSize
 from telegram.ext import ExtBot, CallbackContext
 from llm import ask_ai
 from logger import logger
@@ -80,7 +80,7 @@ async def store_message(message: Message, bot: ExtBot, con: psycopg2.connect) ->
 
 async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
     cur = con.cursor()
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     cur.execute(
         """
         SELECT 
@@ -151,7 +151,7 @@ def _make_unique_blob_path_relative(object_kind: str) -> Path:
     return Path(object_kind) / uu.hex[:5] / str(uu)
 
 
-async def store_photo(photo: Message.photo, bot: ExtBot, con: psycopg2.connect) -> int:
+async def store_photo(photo: PhotoSize, bot: ExtBot, con: psycopg2.connect) -> int:
     try:
         tg_file_id = photo.file_id
         tg_file_info = await bot.get_file(tg_file_id)
@@ -165,7 +165,7 @@ async def store_photo(photo: Message.photo, bot: ExtBot, con: psycopg2.connect) 
 
         cur = con.cursor()
         cur.execute("INSERT INTO user_image (image_path) VALUES (%s) RETURNING id", (str(local_full_path),))
-        image_id = cur.fetchone()[0]
+        image_id: int = cur.fetchone()[0]
         con.commit()
 
         return image_id

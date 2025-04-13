@@ -147,6 +147,8 @@ def main() -> None:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
     async def message_handler_proxy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        assert update.message is not None
+
         await store_message(update.message, context.bot, con)
 
     application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO) & ~filters.COMMAND, message_handler_proxy))
