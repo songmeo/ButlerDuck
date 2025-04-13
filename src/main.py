@@ -147,13 +147,9 @@ def main() -> None:
             logger.error(f"Update {update} caused error {context.error}", exc_info=context.error)
 
     async def message_handler_proxy(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        _ = context
-        if update.message is None:
-            return
+        await store_message(update.message, context.bot, con)
 
-        await store_message(update.message, context, con)
-
-    application.add_handler(MessageHandler(filters.TEXT | filters.PHOTO & ~filters.COMMAND, message_handler_proxy))
+    application.add_handler(MessageHandler((filters.TEXT | filters.PHOTO) & ~filters.COMMAND, message_handler_proxy))
 
     application.add_handler(MessageHandler(filters.Sticker.ALL, sticker_handler))
 

@@ -5,9 +5,7 @@ from pathlib import Path
 
 import psycopg2
 from telegram import Update, Message
-from telegram.ext import (
-    CallbackContext,
-)
+from telegram.ext import ExtBot, CallbackContext
 from llm import ask_ai
 from logger import logger
 
@@ -30,7 +28,7 @@ DB_BLOB_DIR = Path(os.environ["DB_BLOB_DIR"])
 DB_BLOB_DIR.mkdir(parents=True, exist_ok=True)
 
 
-async def store_message(message: Message, context: CallbackContext, con: psycopg2.connect) -> None:
+async def store_message(message: Message, bot: ExtBot, con: psycopg2.connect) -> None:
     if message.from_user is None:
         logger.warning("Message has no sender. Skipping...")
         return
@@ -68,7 +66,7 @@ async def store_message(message: Message, context: CallbackContext, con: psycopg
         )
 
     if photo:
-        user_image_id = await store_photo(photo[0], context, con)
+        user_image_id = await store_photo(photo[0], bot, con)
         cur.execute(
             """
             INSERT INTO user_message (chat_id, user_id, message_id, user_image_id)
@@ -112,8 +110,7 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
     for user_id, user_name, message, image_path in all_messages:
         if image_path:
             try:
-                with open(image_path, "rb") as image_file:
-                    base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+                base64_image = base64.b64encode(Path(image_path).read_bytes()).decode("utf-8")
                 messages.append(
                     {
                         "role": "user",
@@ -154,10 +151,10 @@ def _make_unique_blob_path_relative(object_kind: str) -> Path:
     return Path(object_kind) / uu.hex[:5] / str(uu)
 
 
-async def store_photo(photo: Message.photo, context: CallbackContext, con: psycopg2.connect) -> int:
+async def store_photo(photo: Message.photo, bot: ExtBot, con: psycopg2.connect) -> int:
     try:
         tg_file_id = photo.file_id
-        tg_file_info = await context.bot.get_file(tg_file_id)
+        tg_file_info = await bot.get_file(tg_file_id)
         local_file_path = _make_unique_blob_path_relative("image")
         local_full_path = DB_BLOB_DIR / local_file_path
         local_full_path.parent.mkdir(parents=True, exist_ok=True)
