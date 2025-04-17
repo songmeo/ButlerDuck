@@ -126,6 +126,20 @@ def main() -> None:
         )
         """
     )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_reminder (
+            id SERIAL PRIMARY KEY,  -- SERIAL handles auto-incrementing
+            chat_id BIGINT NOT NULL,
+            action TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            deadline TIMESTAMPTZ NOT NULL,
+            is_notified BOOLEAN DEFAULT FALSE
+        )
+        """
+    )
+
     con.commit()
 
     async def sticker_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
