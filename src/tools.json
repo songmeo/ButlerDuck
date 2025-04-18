@@ -16,5 +16,28 @@
             "required": ["expression"],
             "additionalProperties": false
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set reminder",
+            "description": "set user reminders",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "deadline": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 time",
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "the description of the reminder"
+                    },
+                },
+                "required": ["deadline", "action"],
+                "additionalProperties": false
+            },
+        }
     }
 ]
