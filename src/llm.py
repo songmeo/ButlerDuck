@@ -43,14 +43,22 @@ async def ask_ai(messages: list) -> str:
         logger.info(f"tool call {tool_call}")
         function = tool_call.function.name
         answer = "no function is called."
-        if function == "reminder":
+        if function == "set_reminder":
             arguments = json.loads(tool_call.function.arguments)
             chat_id, action, deadline = (
                 arguments["chat_id"],
                 arguments["action"],
                 arguments["deadline"],
             )
-            answer = set_reminder(chat_id, action, deadline)
+            answer = set_reminder(chat_id, action, False, deadline)
+        if function == "edit_reminder":
+            arguments = json.loads(tool_call.function.arguments)
+            chat_id, action, deadline = (
+                arguments["chat_id"],
+                arguments["action"],
+                arguments["deadline"],
+            )
+            answer = set_reminder(chat_id, action, True, deadline)
         elif function == "evaluate":
             arguments = json.loads(tool_call.function.arguments)
             expression = arguments["expression"]

@@ -20,7 +20,7 @@
     {
         "type": "function",
         "function": {
-            "name": "reminder",
+            "name": "set_reminder",
             "description": "set user reminders",
             "parameters": {
                 "type": "object",
@@ -43,5 +43,33 @@
             "required": ["deadline", "action", "chat_id"],
             "additionalProperties": false
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_reminder",
+            "description": "edit user reminder by deleting old one and adding new one",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "the chat id of conversation"
+                    },
+                    "deadline": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 time"
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "the description of the reminder"
+                    }
+                }
+            },
+            "required": ["deadline", "action", "chat_id"],
+            "additionalProperties": false
+        }
+
     }
 ]

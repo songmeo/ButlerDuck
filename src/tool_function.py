@@ -1,13 +1,16 @@
-import string
 from db import con
 from datetime import datetime
 
 
-def set_reminder(chat_id: int, action: str, deadline: str) -> str:
+def set_reminder(chat_id: int, action: str, reset: bool, deadline: str) -> str:
     today = datetime.now()
     if datetime.fromisoformat(deadline) < today:
         return "the deadline is in the past."
     cur = con.cursor()
+    if reset:
+        cur.execute("DELETE FROM user_reminder WHERE action = %s", (action,))
+        if cur.rowcount == 0:
+            return f"A reminder for {action} is not found."
     cur.execute(
         "INSERT INTO user_reminder (chat_id, action, deadline) VALUES (%s, %s, %s)", (chat_id, action, deadline)
     )
