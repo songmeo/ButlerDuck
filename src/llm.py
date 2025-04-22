@@ -5,7 +5,7 @@ import openai
 from openai import OpenAI
 from openai.types.chat import ChatCompletion
 
-from evaluate import evaluate
+from tool_function import evaluate, set_reminder
 from logger import logger
 
 # todo: make this a class
@@ -40,10 +40,22 @@ async def ask_ai(messages: list) -> str:
 
     while message.tool_calls:
         tool_call = message.tool_calls[0]
+        logger.info(f"tool call {tool_call}")
+        function = tool_call.function.name
+        answer = "no function is called."
+        if function == "reminder":
+            arguments = json.loads(tool_call.function.arguments)
+            chat_id, action, deadline = (
+                arguments["chat_id"],
+                arguments["action"],
+                arguments["deadline"],
+            )
+            answer = set_reminder(chat_id, action, deadline)
+        elif function == "evaluate":
+            arguments = json.loads(tool_call.function.arguments)
+            expression = arguments["expression"]
+            answer = evaluate(expression)
         logger.info(f"Tool call message: {message}")
-        arguments = json.loads(tool_call.function.arguments)
-        expression = arguments["expression"]
-        answer = evaluate(expression)
         function_call_result_message = {
             "role": "tool",
             "content": json.dumps({"result": answer}),

@@ -2,11 +2,11 @@
 # Copyright Song Meo <songmeo@pm.me>
 
 import asyncio
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 import psycopg2
 import os
+from db import con
 from dotenv import load_dotenv
 import telegram
 from telegram import Update, error
@@ -25,10 +25,6 @@ from logger import logger
 
 load_dotenv()
 
-DB_USER = os.environ["DB_USER"]
-DB_PASSWORD = os.environ["DB_PASSWORD"]
-DB_NAME = os.environ["DB_NAME"]
-DB_HOST = os.environ["DB_HOST"]
 TOKEN = os.environ["TOKEN"]
 
 
@@ -66,25 +62,7 @@ async def generate_response_loop(con: psycopg2.connect) -> None:
 
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
-
-    for _ in range(5):
-        try:
-            con = psycopg2.connect(
-                dbname=DB_NAME,
-                user=DB_USER,
-                password=DB_PASSWORD,
-                host=DB_HOST,
-                port=5432,
-            )
-            cur = con.cursor()
-            logger.info("Connection successful!")
-            break  # success! no need to repeat
-        except psycopg2.OperationalError as e:
-            logger.error("Error while connecting to the database:", e)
-            time.sleep(5)
-    else:
-        logger.error("Can't connect to the database. Abort.")
-        exit(1)
+    cur = con.cursor()
 
     cur.execute(
         """

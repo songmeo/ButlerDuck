@@ -20,24 +20,28 @@
     {
         "type": "function",
         "function": {
-            "name": "set reminder",
+            "name": "reminder",
             "description": "set user reminders",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "the chat id of conversation"
+                    },
                     "deadline": {
                         "type": "string",
                         "format": "date-time",
-                        "description": "ISO 8601 time",
+                        "description": "ISO 8601 time"
                     },
                     "action": {
                         "type": "string",
                         "description": "the description of the reminder"
-                    },
-                },
-                "required": ["deadline", "action"],
-                "additionalProperties": false
+                    }
+                }
             },
+            "required": ["deadline", "action", "chat_id"],
+            "additionalProperties": false
         }
     }
 ]

@@ -1,0 +1,28 @@
+import os
+import time
+
+import psycopg2
+from logger import logger
+
+DB_USER = os.environ["DB_USER"]
+DB_PASSWORD = os.environ["DB_PASSWORD"]
+DB_NAME = os.environ["DB_NAME"]
+DB_HOST = os.environ["DB_HOST"]
+
+for _ in range(5):
+    try:
+        con = psycopg2.connect(
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            host=DB_HOST,
+            port=5432,
+        )
+        logger.info("Connection successful!")
+        break  # success! no need to repeat
+    except psycopg2.OperationalError as e:
+        logger.error("Error while connecting to the database:", e)
+        time.sleep(5)
+else:
+    logger.error("Can't connect to the database. Abort.")
+    exit(1)
