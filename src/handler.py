@@ -1,7 +1,6 @@
 import base64
 import os
 import uuid
-from datetime import datetime
 from typing import Any
 from pathlib import Path
 import psycopg2
@@ -24,7 +23,8 @@ SYSTEM_PROMPT = f"""
     Explicit mentions include cases where your name or identifier appears anywhere in the message. 
     If you are not explicitly addressed, always respond with {no_reply_token}.
     When answering, don't use LaTeX.
-    If you need today date to set reminder, it is {datetime.now().isoformat()}.
+    When setting/editing reminder, you are not allowed to answer from your own knowledge. 
+    You must call the appropriate tool and return its output.
     """
 DB_BLOB_DIR = Path(os.environ["DB_BLOB_DIR"])
 DB_BLOB_DIR.mkdir(parents=True, exist_ok=True)
@@ -140,9 +140,9 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
     cur.execute(
         """
         INSERT INTO user_message (chat_id, user_id, message)
-        VALUES (%s, 0, %s)
+        VALUES (%s, %s, %s)
         """,
-        (chat_id, response),
+        (chat_id, BOT_USER_ID, response),
     )
     con.commit()
     return response

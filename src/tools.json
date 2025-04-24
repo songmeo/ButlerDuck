@@ -21,18 +21,22 @@
         "type": "function",
         "function": {
             "name": "set_reminder",
-            "description": "set user reminders",
+            "description": "Set a reminder on a specific date by calling this function.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "chat_id": {
-                        "type": "integer",
-                        "description": "the chat id of conversation"
+                    "duration": {
+                        "type": "string",
+                        "description": "A relative time like 'PT10M' (ISO 8601 duration = '10 minutes from now')"
                     },
                     "deadline": {
                         "type": "string",
-                        "format": "date-time",
-                        "description": "ISO 8601 time"
+                          "format": "date-time",
+                          "description": "An absolute ISO 8601 time like '2025-04-24T15:00:00Z'"
+                    },
+                    "chat_id": {
+                        "type": "integer",
+                        "description": "the chat id of conversation"
                     },
                     "action": {
                         "type": "string",
@@ -40,36 +44,12 @@
                     }
                 }
             },
-            "required": ["deadline", "action", "chat_id"],
+            "required": ["action", "chat_id"],
+            "oneOf": [
+              { "required": ["duration"] },
+              { "required": ["deadline"] }
+            ],
             "additionalProperties": false
         }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "edit_reminder",
-            "description": "edit user reminder by deleting old one and adding new one",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "chat_id": {
-                        "type": "integer",
-                        "description": "the chat id of conversation"
-                    },
-                    "deadline": {
-                        "type": "string",
-                        "format": "date-time",
-                        "description": "ISO 8601 time"
-                    },
-                    "action": {
-                        "type": "string",
-                        "description": "the description of the reminder"
-                    }
-                }
-            },
-            "required": ["deadline", "action", "chat_id"],
-            "additionalProperties": false
-        }
-
     }
 ]

@@ -4,7 +4,6 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
-import psycopg2
 import os
 from db import con
 from dotenv import load_dotenv
@@ -28,7 +27,39 @@ load_dotenv()
 TOKEN = os.environ["TOKEN"]
 
 
-async def generate_response_loop(con: psycopg2.connect) -> None:
+async def send_reminder_loop() -> None:
+    while True:
+        cur = con.cursor()
+        cur.execute(
+            "SELECT chat_id, action, deadline FROM user_reminder WHERE deadline <= %s AND is_notified = %s",
+            (
+                datetime.now().isoformat(),
+                False,
+            ),
+        )
+        reminders = cur.fetchall()
+        for r in reminders:
+            chat_id, action, deadline = r
+            bot = telegram.Bot(token=TOKEN)
+
+            message = f"This is a reminder to {action} at {deadline}."
+
+            cur.execute(
+                """
+                INSERT INTO user_message (chat_id, user_id, message)
+                VALUES (%s, %s, %s)
+                """,
+                (chat_id, BOT_USER_ID, message),
+            )
+
+            await bot.send_message(chat_id=chat_id, text=message)
+            cur.execute("UPDATE user_reminder SET is_notified = TRUE WHERE action = %s", (action,))
+            con.commit()
+
+        await asyncio.sleep(60)
+
+
+async def generate_response_loop() -> None:
     while True:
         cur = con.cursor()
         cur.execute("SELECT chat_id FROM user_message")
@@ -153,7 +184,8 @@ def main() -> None:
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.create_task(generate_response_loop(con))
+    loop.create_task(generate_response_loop())
+    loop.create_task(send_reminder_loop())
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
