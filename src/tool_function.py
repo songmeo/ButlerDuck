@@ -6,7 +6,7 @@ import isodate
 def set_reminder(chat_id: int, action: str, deadline: str, duration: str) -> str:
     today = datetime.now(timezone.utc)
     if deadline:
-        if datetime.fromisoformat(deadline) < today:
+        if (datetime.fromisoformat(deadline) - today).seconds < -60:
             return "Sorry deadline is past."
     elif duration:
         td = isodate.parse_duration(duration)

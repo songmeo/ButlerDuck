@@ -9,6 +9,8 @@ DB_PASSWORD = os.environ["DB_PASSWORD"]
 DB_NAME = os.environ["DB_NAME"]
 DB_HOST = os.environ["DB_HOST"]
 
+# This is needed because the DB container takes a longer time to start,
+# so the DB may not be available in the beginning.
 for _ in range(5):
     try:
         con = psycopg2.connect(

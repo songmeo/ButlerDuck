@@ -131,6 +131,10 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
                 {
                     "role": "assistant" if user_id == 0 else "user",
                     "content": f"{user_name} ({user_id}): {message}",
+                    # TODO FIXME: add more metadata; e.g. (change the system prompt and IO code):
+                    # "content": json.dumps({
+                    #       'user_name': user_name, 'user_id': user_id, 'chat_id': chat_id, 'message': message
+                    # }),
                 }
             )
     logger.info("all messages: %s", messages)

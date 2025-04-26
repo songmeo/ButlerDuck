@@ -28,6 +28,7 @@ TOKEN = os.environ["TOKEN"]
 
 
 async def send_reminder_loop() -> None:
+    # TODO FIXME add logging for single iteration failure and total loop failure.
     while True:
         cur = con.cursor()
         cur.execute(
@@ -42,6 +43,9 @@ async def send_reminder_loop() -> None:
             chat_id, action, deadline = r
             bot = telegram.Bot(token=TOKEN)
 
+            # This is a simplified solution; in the future, we should ask the LLM to process reminder events.
+            # In response, the LLM can invoke another tool, like message a specific user (doesn't have to be
+            # the user that created the reminder), or do this and that.
             message = f"This is a reminder to {action} at {deadline}."
 
             cur.execute(

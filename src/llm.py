@@ -1,5 +1,6 @@
 import asyncio
 import json
+from typing import Any
 import os
 import openai
 from openai import OpenAI
@@ -13,10 +14,12 @@ from logger import logger
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 OPENAI_MODEL = "gpt-4o"
 
+TOOL_DEF = json.load(open("tools.json"))
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-async def ask_ai(messages: list) -> str:
+async def ask_ai(messages: list[dict[str, Any]]) -> str:
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
     def runs_in_background_thread() -> ChatCompletion:
@@ -25,7 +28,7 @@ async def ask_ai(messages: list) -> str:
             completion = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=messages,
-                tools=json.load(open("tools.json")),
+                tools=TOOL_DEF,
             )
         except openai.BadRequestError as e:
             logger.error(f"OpenAI API error: {e}")
