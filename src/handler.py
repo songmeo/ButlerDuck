@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import uuid
 from typing import Any
@@ -14,8 +15,8 @@ BOT_USER_ID = 0
 BOT_MESSAGE_ID = 0
 no_reply_token = "-"
 SYSTEM_PROMPT = f"""
-    Each message in the conversation below is prefixed with the username and their unique 
-    identifier, like this: "username (123456789): MESSAGE...". '
+    Each message in the conversation below is sent in json like this
+    {{"user_name": user_name, "user_id": user_id, "chat_id": chat_id, "message": message}}.
     You play the role of the user called {BOT_NAME}, or simply Bot;
     your username and unique identifier are {BOT_NAME} and 0. 
     You are observing the users' conversation and normally you do not interfere 
@@ -130,11 +131,9 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
             messages.append(
                 {
                     "role": "assistant" if user_id == 0 else "user",
-                    "content": f"{user_name} ({user_id}): {message}",
-                    # TODO FIXME: add more metadata; e.g. (change the system prompt and IO code):
-                    # "content": json.dumps({
-                    #       'user_name': user_name, 'user_id': user_id, 'chat_id': chat_id, 'message': message
-                    # }),
+                    "content": json.dumps(
+                        {"user_name": user_name, "user_id": user_id, "chat_id": chat_id, "message": message}
+                    ),
                 }
             )
     logger.info("all messages: %s", messages)
