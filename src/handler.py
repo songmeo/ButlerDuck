@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import uuid
 from typing import Any
@@ -7,15 +8,17 @@ import psycopg2
 from telegram import Update, Message, PhotoSize
 from telegram.ext import ExtBot, CallbackContext
 from llm import ask_ai
-from logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 BOT_NAME = "ButlerBot"
 BOT_USER_ID = 0
 BOT_MESSAGE_ID = 0
 no_reply_token = "-"
 SYSTEM_PROMPT = f"""
-    Each message in the conversation below is prefixed with the username and their unique 
-    identifier, like this: "username (123456789): MESSAGE...". '
+    Each message in the conversation below is sent in json like this
+    {{"user_name": user_name, "user_id": user_id, "chat_id": chat_id, "message": message}}.
     You play the role of the user called {BOT_NAME}, or simply Bot;
     your username and unique identifier are {BOT_NAME} and 0. 
     You are observing the users' conversation and normally you do not interfere 
@@ -23,6 +26,8 @@ SYSTEM_PROMPT = f"""
     Explicit mentions include cases where your name or identifier appears anywhere in the message. 
     If you are not explicitly addressed, always respond with {no_reply_token}.
     When answering, don't use LaTeX.
+    When setting/editing reminder, you are not allowed to answer from your own knowledge. 
+    You must call the appropriate tool and return its output.
     """
 DB_BLOB_DIR = Path(os.environ["DB_BLOB_DIR"])
 DB_BLOB_DIR.mkdir(parents=True, exist_ok=True)
@@ -128,19 +133,20 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
             messages.append(
                 {
                     "role": "assistant" if user_id == 0 else "user",
-                    "content": f"{user_name} ({user_id}): {message}",
+                    "content": json.dumps(
+                        {"user_name": user_name, "user_id": user_id, "chat_id": chat_id, "message": message}
+                    ),
                 }
             )
     logger.info("all messages: %s", messages)
     response = await ask_ai(messages)
-
-    response = response.removeprefix(f"{BOT_NAME} ({BOT_USER_ID}): ")
+    response = json.loads(response).get("message", "no message received.")
     cur.execute(
         """
         INSERT INTO user_message (chat_id, user_id, message)
-        VALUES (%s, 0, %s)
+        VALUES (%s, %s, %s)
         """,
-        (chat_id, response),
+        (chat_id, BOT_USER_ID, response),
     )
     con.commit()
     return response

@@ -1,22 +1,27 @@
 import asyncio
 import json
+from typing import Any
 import os
 import openai
 from openai import OpenAI
 from openai.types.chat import ChatCompletion
 
-from evaluate import evaluate
-from logger import logger
+from tool_function import evaluate, set_reminder
+import logging
+
+logger = logging.getLogger(__name__)
 
 # todo: make this a class
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 OPENAI_MODEL = "gpt-4o"
 
+TOOL_DEF = json.load(open("tools.json"))
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-async def ask_ai(messages: list) -> str:
+async def ask_ai(messages: list[Any]) -> str:
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
     def runs_in_background_thread() -> ChatCompletion:
@@ -25,7 +30,7 @@ async def ask_ai(messages: list) -> str:
             completion = client.chat.completions.create(
                 model=OPENAI_MODEL,
                 messages=messages,
-                tools=json.load(open("tools.json")),
+                tools=TOOL_DEF,
             )
         except openai.BadRequestError as e:
             logger.error(f"OpenAI API error: {e}")
@@ -40,10 +45,23 @@ async def ask_ai(messages: list) -> str:
 
     while message.tool_calls:
         tool_call = message.tool_calls[0]
+        logger.info(f"tool call {tool_call}")
+        function = tool_call.function.name
+        answer = "no function is called."
+        if function == "set_reminder":
+            arguments = json.loads(tool_call.function.arguments)
+            chat_id, action, duration, deadline = (
+                arguments["chat_id"],
+                arguments["action"],
+                arguments.get("duration", None),
+                arguments.get("deadline", None),
+            )
+            answer = set_reminder(chat_id, action, deadline, duration)
+        elif function == "evaluate":
+            arguments = json.loads(tool_call.function.arguments)
+            expression = arguments["expression"]
+            answer = evaluate(expression)
         logger.info(f"Tool call message: {message}")
-        arguments = json.loads(tool_call.function.arguments)
-        expression = arguments["expression"]
-        answer = evaluate(expression)
         function_call_result_message = {
             "role": "tool",
             "content": json.dumps({"result": answer}),
