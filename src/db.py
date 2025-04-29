@@ -2,7 +2,9 @@ import os
 import time
 
 import psycopg2
-from logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 DB_USER = os.environ["DB_USER"]
 DB_PASSWORD = os.environ["DB_PASSWORD"]

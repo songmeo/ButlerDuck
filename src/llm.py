@@ -7,7 +7,9 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletion
 
 from tool_function import evaluate, set_reminder
-from logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 # todo: make this a class
 
@@ -19,7 +21,7 @@ TOOL_DEF = json.load(open("tools.json"))
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-async def ask_ai(messages: list[dict[str, Any]]) -> str:
+async def ask_ai(messages: list[Any]) -> str:
     loop = asyncio.get_running_loop()  # gain access to the scheduler
 
     def runs_in_background_thread() -> ChatCompletion:

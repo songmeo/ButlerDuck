@@ -8,7 +8,9 @@ import psycopg2
 from telegram import Update, Message, PhotoSize
 from telegram.ext import ExtBot, CallbackContext
 from llm import ask_ai
-from logger import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 BOT_NAME = "ButlerBot"
 BOT_USER_ID = 0
@@ -138,8 +140,7 @@ async def generate_response(chat_id: int, con: psycopg2.connect) -> str:
             )
     logger.info("all messages: %s", messages)
     response = await ask_ai(messages)
-
-    response = response.removeprefix(f"{BOT_NAME} ({BOT_USER_ID}): ")
+    response = json.loads(response).get("message", "no message received.")
     cur.execute(
         """
         INSERT INTO user_message (chat_id, user_id, message)
